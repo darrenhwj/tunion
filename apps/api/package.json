@@ -10,7 +10,8 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:ensure": "tsx src/db/ensure.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "db:reset": "tsx src/db/seed.ts --reset"
+    "db:reset": "tsx src/db/seed.ts --reset",
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@tunion/shared": "*",
