@@ -5,6 +5,8 @@ import { getDb } from './db';
 import { usersRouter } from './routes/users';
 import { coursesRouter } from './routes/courses';
 import { demoAuthRouter } from './routes/demoAuth';
+import { discussionsRouter, repliesRouter } from './routes/discussions';
+import { errorHandler } from './http';
 
 export function createApp() {
   const app = express();
@@ -31,10 +33,13 @@ export function createApp() {
 
   app.use('/api/users', usersRouter);
   app.use('/api/courses', coursesRouter);
+  app.use('/api/discussions', discussionsRouter);
+  app.use('/api/replies', repliesRouter);
   app.use('/api', demoAuthRouter);
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' } satisfies ApiError);
   });
+  app.use(errorHandler);
   return app;
 }
