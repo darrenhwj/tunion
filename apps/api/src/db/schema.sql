@@ -42,7 +42,23 @@ CREATE TABLE IF NOT EXISTS replies (
   author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   body TEXT NOT NULL,
   is_accepted_answer INTEGER NOT NULL DEFAULT 0,
+  parent_reply_id INTEGER REFERENCES replies(id) ON DELETE CASCADE,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- One vote per (user, item): the composite primary key prevents duplicate votes.
+CREATE TABLE IF NOT EXISTS discussion_votes (
+  discussion_id INTEGER NOT NULL REFERENCES discussions(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (discussion_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS reply_votes (
+  reply_id INTEGER NOT NULL REFERENCES replies(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (reply_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS resources (
@@ -113,3 +129,5 @@ CREATE INDEX IF NOT EXISTS idx_discussions_course ON discussions(course_id);
 CREATE INDEX IF NOT EXISTS idx_replies_discussion ON replies(discussion_id);
 CREATE INDEX IF NOT EXISTS idx_resources_course ON resources(course_id);
 CREATE INDEX IF NOT EXISTS idx_help_course ON help_requests(course_id);
+-- At most one accepted (helpful) answer per discussion.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_replies_one_accepted ON replies(discussion_id) WHERE is_accepted_answer = 1;

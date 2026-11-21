@@ -25,6 +25,12 @@ export function getDb(): DatabaseSync {
 
 export function migrate(database: DatabaseSync): void {
   database.exec(readFileSync(resolve(here, 'schema.sql'), 'utf8'));
+  // Databases created before threaded replies lack parent_reply_id; add it in place.
+  const cols = database.prepare('PRAGMA table_info(replies)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'parent_reply_id')) {
+    database.exec('ALTER TABLE replies ADD COLUMN parent_reply_id INTEGER REFERENCES replies(id) ON DELETE CASCADE');
+  }
+  database.exec('CREATE INDEX IF NOT EXISTS idx_replies_parent ON replies(parent_reply_id)');
 }
 
 export function closeDb(): void {
