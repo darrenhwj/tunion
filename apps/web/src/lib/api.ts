@@ -23,3 +23,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok) throw new Error((body as ApiError).error ?? `Request failed (${res.status})`);
   return body as T;
 }
+
+export function postJson<T>(path: string, payload: object) {
+  return api<T>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
