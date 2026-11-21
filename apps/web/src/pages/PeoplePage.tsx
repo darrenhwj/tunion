@@ -1,0 +1,61 @@
+import { Link, useParams } from 'react-router-dom';
+import Badge from '../components/Badge';
+import Card from '../components/Card';
+import { Empty, PageHeading, textLink } from '../components/CommunityUI';
+import { useCommunity } from '../demo/community';
+import { useDemoAuth } from '../lib/demoAuth';
+import { DiscussionList } from './DiscussionsPage';
+import { ResourceList } from './ResourcesPage';
+
+export function PeoplePage() {
+  const { accounts, loading, error } = useDemoAuth();
+  return <>
+    <PageHeading title="People" description="Meet the students, tutors, and teaching assistants in the community." />
+    {loading || error ? <Empty>{loading ? 'Loading people…' : error}</Empty> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{accounts.map((account) => <Card key={account.id} className="space-y-2">
+      <Badge>{account.role}</Badge><h2 className="font-bold"><Link className="hover:text-brand-700 hover:underline" to={'/people/' + account.id}>{account.name}</Link></h2>
+      <p className="text-sm text-ink-700">{account.bio}</p>
+    </Card>)}</div>}
+  </>;
+}
+
+export function ProfilePage() {
+  const { userId } = useParams();
+  const { accounts, loading, error } = useDemoAuth();
+  const { courses, data } = useCommunity();
+  const person = accounts.find((account) => String(account.id) === userId);
+  if (!person) return <Empty>{loading ? 'Loading profile…' : error || 'Profile not found.'}</Empty>;
+
+  const discussions = data.discussions.filter((item) => item.authorId === person.id);
+  const replies = data.replies.filter((item) => item.authorId === person.id);
+  const resources = data.resources.filter((item) => item.authorId === person.id);
+  const ids = new Set([
+    ...(data.enrollments[person.id] ?? []),
+    ...(data.pastCourses?.[person.id] ?? []),
+    ...discussions.map((item) => item.courseId),
+    ...resources.map((item) => item.courseId),
+    ...replies.flatMap((reply) => data.discussions.find((post) => post.id === reply.discussionId)?.courseId ?? []),
+  ]);
+  const history = courses.filter((course) => ids.has(course.id));
+  const badges = [
+    discussions.length ? 'Discussion starter' : null,
+    replies.length ? 'Peer supporter' : null,
+    replies.some((reply) => reply.guided) ? 'Guided Answer contributor' : null,
+    resources.length ? 'Resource contributor' : null,
+    person.role === 'tutor' ? 'Peer tutor' : null,
+  ].filter(Boolean);
+
+  return <>
+    <Link to="/people" className={textLink}>← Community members</Link>
+    <PageHeading title={person.name} description={person.major + ' · Year ' + person.year}><Badge tone="brand">{person.role}</Badge></PageHeading>
+    <Card className="space-y-3"><p>{person.bio || 'No bio yet.'}</p><h2 className="font-bold">Badges</h2><div className="flex flex-wrap gap-2">{badges.length ? badges.map((badge) => <Badge key={badge} tone="brand">{badge}</Badge>) : <p className="text-sm text-ink-500">No badges earned yet.</p>}</div></Card>
+    <section className="space-y-3"><h2 className="text-xl font-bold">Course history</h2>
+      {history.length ? <div className="grid gap-3 sm:grid-cols-2">{history.map((course) => <Card key={course.id}><Link className={textLink} to={'/courses/' + course.id}>{course.code} · {course.title}</Link></Card>)}</div> : <Empty>No course activity yet.</Empty>}
+    </section>
+    <section className="space-y-3"><h2 className="text-xl font-bold">Contributions</h2>
+      <h3 className="font-semibold">Discussions ({discussions.length})</h3><DiscussionList items={discussions} />
+      <h3 className="font-semibold">Replies ({replies.length})</h3>
+      {replies.length ? replies.map((reply) => <Card key={reply.id} className="space-y-2"><Link className={textLink} to={'/discussions/' + reply.discussionId}>{data.discussions.find((post) => post.id === reply.discussionId)?.title ?? 'View discussion'}</Link><p className="line-clamp-2 break-words text-sm">{reply.body}</p></Card>) : <Empty>No replies yet.</Empty>}
+      <h3 className="font-semibold">Resources ({resources.length})</h3><ResourceList items={resources} />
+    </section>
+  </>;
+}
