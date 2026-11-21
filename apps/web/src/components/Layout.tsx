@@ -16,7 +16,7 @@ export default function Layout() {
     <div className="min-h-screen lg:grid lg:grid-cols-[230px_minmax(0,1fr)]">
       <aside className="border-b border-line bg-surface lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:border-r lg:border-b-0">
         <Link to="/" className="flex items-center gap-3 px-5 py-5 lg:px-6 lg:py-7">
-          <span className="grid size-10 place-items-center rounded-xl bg-brand-600 text-white"><Glyph name="code" /></span>
+          <span className="grid size-10 place-items-center rounded-xl bg-brand-600 text-white"><Glyph name="brand" /></span>
           <span><span className="block text-xl font-extrabold tracking-tight">TUnion</span><span className="block text-xs text-ink-500">CS Peer Learning</span></span>
         </Link>
         <nav aria-label="Main navigation" className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:px-4">
