@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Empty, textLink } from '../components/CommunityUI';
 import Glyph from '../components/Glyph';
 import { useCommunity } from '../demo/community';
+import { fetchDiscussions } from '../lib/discussions';
+import { useApiQuery } from '../lib/useApiQuery';
 import { useDemoAuth } from '../lib/demoAuth';
 import { CourseCard } from './CoursesPage';
 import { DiscussionList } from './DiscussionsPage';
@@ -22,6 +24,7 @@ function DashboardSection({ title, to, action, children }: { title: string; to: 
 export default function HomePage() {
   const { current } = useDemoAuth();
   const { courses, loading, courseError, data } = useCommunity();
+  const recent = useApiQuery('limit=3', fetchDiscussions);
   const myCourses = current ? courses.filter((course) => (data.enrollments[current.id] ?? []).includes(course.id)) : [];
   const joinedGroups = current ? data.groups.filter((group) => group.memberIds.includes(current.id)) : [];
   return <>
@@ -36,7 +39,7 @@ export default function HomePage() {
       {myCourses.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{myCourses.map((course) => <CourseCard key={course.id} course={course} />)}</div> : <Empty>{loading ? 'Loading courses…' : courseError || (current ? 'Join a course to see it here.' : 'Select a demo account in the header to see your courses.')}</Empty>}
     </DashboardSection>
     <div className="grid items-start gap-7 xl:grid-cols-[1.2fr_1fr]">
-      <DashboardSection title="Recent discussions" to="/discussions" action="All discussions"><DiscussionList items={data.discussions.slice(0, 3)} /></DashboardSection>
+      <DashboardSection title="Recent discussions" to="/discussions" action="All discussions">{recent.loading || recent.error ? <Empty>{recent.error ?? 'Loading discussions…'}</Empty> : <DiscussionList items={recent.data?.discussions ?? []} />}</DashboardSection>
       <DashboardSection title="Study sessions" to="/groups" action="Browse groups"><GroupList items={(joinedGroups.length ? joinedGroups : data.groups).slice(0, 2)} /></DashboardSection>
     </div>
     <DashboardSection title="Recent resources" to="/resources" action="All resources"><ResourceList items={data.resources.slice(0, 3)} /></DashboardSection>

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link, Outlet, useParams } from 'react-router-dom';
-import type { Course } from '@tunion/shared';
+import type { Course, GetCourseResponse, ListCoursesResponse } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Glyph from '../components/Glyph';
 import { Empty, Field, PageHeading, Person, Tabs, field } from '../components/CommunityUI';
 import { useCommunity } from '../demo/community';
+import { api } from '../lib/api';
+import { useApiQuery } from '../lib/useApiQuery';
 import { useDemoAuth } from '../lib/demoAuth';
 
 export function CourseCard({ course }: { course: Course }) {
@@ -24,33 +26,44 @@ export function CourseCard({ course }: { course: Course }) {
   </Link>;
 }
 
+function fetchCourses(query: string, signal: AbortSignal) {
+  return api<ListCoursesResponse>('/courses?' + query, { signal });
+}
+
+function fetchCourse(id: string, signal: AbortSignal) {
+  return api<GetCourseResponse>('/courses/' + encodeURIComponent(id), { signal });
+}
+
 export function CoursesPage() {
-  const { courses, loading, courseError } = useCommunity();
   const [query, setQuery] = useState('');
   const [level, setLevel] = useState('');
-  const visible = courses.filter((course) => (!level || String(course.level) === level) &&
-    [course.code, course.title, course.description].some((value) => value.toLowerCase().includes(query.trim().toLowerCase())));
+  const params = new URLSearchParams();
+  if (query.trim()) params.set('q', query.trim());
+  if (level) params.set('level', level);
+  const { data, loading, error } = useApiQuery(params.toString(), fetchCourses);
+  const visible = data?.courses ?? [];
 
   return <>
     <PageHeading title="Course directory" description="Find a course to connect with classmates, ask questions, and share study materials." />
     <Card className="grid gap-4 sm:grid-cols-[1fr_180px]">
-      <Field label="Search courses"><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} className={field} placeholder="Search by code or topic" /></Field>
+      <Field label="Search courses"><input type="search" maxLength={100} value={query} onChange={(event) => setQuery(event.target.value)} className={field} placeholder="Search by code or topic" /></Field>
       <Field label="Course level"><select className={field} value={level} onChange={(event) => setLevel(event.target.value)}>
         <option value="">All levels</option>{[100, 200, 300, 400].map((value) => <option key={value}>{value}</option>)}
       </select></Field>
     </Card>
-    {loading || courseError || !visible.length
-      ? <Empty>{loading ? 'Loading courses…' : courseError || 'No courses match your search.'}</Empty>
+    {loading || error || !visible.length
+      ? <Empty>{loading ? 'Loading courses…' : error || 'No courses match your search.'}</Empty>
       : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{visible.map((course) => <CourseCard key={course.id} course={course} />)}</div>}
   </>;
 }
 
 export function CoursePage() {
-  const { courseId } = useParams();
-  const { courses, loading, courseError, data, update } = useCommunity();
+  const { courseId = '' } = useParams();
+  const { data, update } = useCommunity();
   const { current } = useDemoAuth();
-  const course = courses.find((item) => String(item.id) === courseId);
-  if (!course) return <Empty>{loading ? 'Loading course…' : courseError || 'Course not found.'}</Empty>;
+  const query = useApiQuery(courseId, fetchCourse);
+  const course = query.data?.course;
+  if (!course) return <Empty>{query.error ?? 'Loading course…'}</Empty>;
   const base = '/courses/' + course.id;
   const enrolled = !!current && (data.enrollments[current.id] ?? []).includes(course.id);
   return <>
