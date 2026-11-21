@@ -8,3 +8,24 @@ dist/
 *.sqlite3
 uploads/
 .DS_Store
+
+# Local databases (incl. SQLite WAL/SHM sidecars) and data dirs
+*.db-shm
+*.db-wal
+*.db-journal
+data/
+
+# User uploads
+uploads/
+
+# Secrets / credentials
+*.pem
+*.key
+credentials*.json
+secrets/
+
+# Build / tooling
+*.tsbuildinfo
+coverage/
+*.log
+.vite/
