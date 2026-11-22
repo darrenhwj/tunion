@@ -91,7 +91,7 @@ function DiscussionThread({ thread, refreshing, refresh }: { thread: GetDiscussi
       </>} />
       <RequireAccount><ReplyForm parent={parent} cancel={() => setParent(null)} pending={pending} submit={reply} /></RequireAccount>
     </section>
-    {error && <p role="alert" className="sticky bottom-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+    {error && <p role="alert" className="sticky bottom-3 rounded-lg bg-red-950 p-3 text-sm text-red-200">{error}</p>}
   </>;
 }
 
@@ -144,7 +144,7 @@ function AdminDeleteButton({ postId, courseId }: { postId: number; courseId: num
     }
   }
   return <>
-    <Button type="button" variant="secondary" className="border-red-300 text-red-700" onClick={() => { setError(''); setOpen(true); }}>Delete Post</Button>
+    <Button type="button" variant="secondary" className="border-red-300 text-red-300" onClick={() => { setError(''); setOpen(true); }}>Delete Post</Button>
     <ConfirmDialog open={open} title="Delete this post?" confirmLabel="Delete post" busy={busy} error={error} onConfirm={() => void remove()} onCancel={() => setOpen(false)}>
       <p>This removes the post from discussions for everyone. Its replies and votes are kept in the database but no longer shown.</p>
     </ConfirmDialog>

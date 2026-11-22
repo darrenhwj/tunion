@@ -48,13 +48,13 @@ export default function ResourcePreview({ resource, close, download }: { resourc
   }, [previewUrl]);
 
   return <dialog ref={dialog} onCancel={close} aria-labelledby={titleId}
-    className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto rounded-xl border border-line bg-surface p-4 text-ink-900 shadow-xl backdrop:bg-ink-900/50 sm:p-6">
+    className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto rounded-xl border border-line bg-surface p-4 text-ink-900 shadow-xl backdrop:bg-black/75 sm:p-6">
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <h2 id={titleId} className="min-w-0 break-words text-lg font-bold">{resource.title}</h2>
       <Button variant="secondary" onClick={close}>Close preview</Button>
     </div>
     {file && <p className="mb-3 break-words text-sm text-ink-500">{file.filename} · {file.mimeType} · {new Intl.NumberFormat().format(file.sizeBytes)} bytes</p>}
-    {error ? <p role="alert" className="text-sm text-red-700">{error}</p>
+    {error ? <p role="alert" className="text-sm text-red-300">{error}</p>
       : !previewUrl ? <p className="text-sm text-ink-700">Preview is unavailable for this file type. Download the file to open it.</p>
       : !preview ? <p role="status" className="text-sm">Preparing preview…</p>
       : preview.kind === 'image' ? <img src={preview.url} alt={resource.title} className="mx-auto max-h-[60dvh] max-w-full rounded object-contain" onError={() => setError('This image could not be displayed.')} />

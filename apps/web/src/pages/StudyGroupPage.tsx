@@ -89,7 +89,7 @@ function GroupSessions({ groupId, canSchedule }: { groupId: string; canSchedule:
       <Field label="Location"><input name="location" maxLength={300} placeholder="Use group location" className={field} /></Field>
       <div className="flex flex-wrap gap-2"><Button type="submit">Publish session</Button><Button type="button" variant="secondary" onClick={() => { setEditing(false); setError(''); }}>Back</Button></div>
     </fieldset></form></Card>}
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     {query.loading || query.error ? <Empty>{query.error ?? 'Loading study sessions…'}</Empty> : query.data?.sessions.length
       ? query.data.sessions.map((session) => <Card key={session.id} id={'session-' + session.id} className="space-y-2">
         <div className="flex flex-wrap gap-2"><Badge tone="brand">{session.courseCode}</Badge><Badge>{session.status}</Badge></div><h3 className="font-bold">{session.title}</h3>

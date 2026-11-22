@@ -150,7 +150,7 @@ function RequestCard({ request, userId, refresh, refreshing }: { request: Tutori
       {request.status === 'accepted' && <Button disabled={pending} onClick={() => void mutate(() => api<ConfirmTutoringRequestResponse>(path + '/confirm', { method: 'POST' }))}>Confirm session</Button>}
       <Button disabled={pending} variant="secondary" onClick={() => void mutate(() => api<TutoringRequestResponse>(path + '/cancel', { method: 'POST' }))}>Withdraw request</Button>
     </div>}
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
   </Card>;
 }
 
@@ -195,7 +195,7 @@ function SessionDetails({ id, userId }: { id: string; userId: number }) {
         {session.tutor.id === userId && Date.parse(session.startsAt) <= Date.now() && <Button disabled={pending} onClick={() => void change('complete')}>Mark complete</Button>}
         <Button variant="secondary" disabled={pending} onClick={() => { if (window.confirm('Cancel this tutoring session?')) void change('cancel'); }}>Cancel session</Button>
       </div>}
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     </Card>
   </>;
 }

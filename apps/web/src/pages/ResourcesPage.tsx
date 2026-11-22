@@ -59,7 +59,7 @@ function ResourceVote({ resource, canVote }: { resource: ResourceSummary; canVot
       <Button aria-label="Upvote resource" aria-pressed={vote.hasUpvoted} variant={vote.hasUpvoted ? 'primary' : 'secondary'} disabled={!canVote || pending} onClick={() => void toggle()}>↑ Upvote</Button>
       <span aria-live="polite" className="text-xs text-ink-500">{vote.upvoteCount} {vote.upvoteCount === 1 ? 'upvote' : 'upvotes'}</span>
     </div>
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
   </div>;
 }
 
@@ -91,7 +91,7 @@ function ResourceControl({ resource }: { resource: ResourceSummary }) {
   if (url) return <a href={url} target="_blank" rel="noreferrer" className={textLink}>Open link ↗</a>;
   if (!file || !downloadUrl) return <p className="text-sm text-ink-500">File unavailable</p>;
   const downloadControl = <Button variant="secondary" disabled={working} onClick={download}>{working ? 'Preparing…' : 'Download'}</Button>;
-  const downloadError = error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>;
+  const downloadError = error && <p role="alert" className="mt-2 text-sm text-red-300">{error}</p>;
   return <>
     <div className="flex flex-wrap items-center gap-2">
       <Button variant="secondary" onClick={() => { setError(''); setPreview(true); }}>{resource.previewUrl ? 'Preview' : 'File details'}</Button>
@@ -171,7 +171,7 @@ export default function ResourcesPage() {
       <Field label="Type"><select name="type" className={field}>{Object.entries(types).map(([type, label]) => <option key={type} value={type}>{label}</option>)}</select></Field>
       <Field label="Upload a file"><input name="file" type="file" className={field} accept={RESOURCE_UPLOAD_LIMITS.extensions.map((extension) => '.' + extension).join(',')} /></Field>
       <Field label="Or add a link"><input name="url" type="url" className={field} placeholder="https://" /></Field>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
       <Button type="submit" disabled={uploading}>{uploading ? 'Saving…' : 'Publish resource'}</Button>
     </form></Card></RequireAccount>}
     <div className="grid gap-3 sm:grid-cols-2">

@@ -152,7 +152,7 @@ function RequestForm({ tutor }: { tutor: TutorProfile }) {
     <Field label="Topic"><input name="topic" className={field} required minLength={3} maxLength={200} /></Field>
     <Field label="What are you working on?"><textarea name="details" className={field} maxLength={5000} rows={4} /></Field>
     <Button type="submit">{pending ? 'Sending…' : 'Send booking request'}</Button>
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     {submitted && <p role="status" className="text-sm text-brand-700">Request sent to {tutor.user.name}. They can accept, decline, or propose another time. <Link className={textLink} to="/tutoring#requests">View my requests</Link></p>}
   </fieldset></form></Card>;
 }

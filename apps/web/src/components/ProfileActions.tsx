@@ -84,7 +84,7 @@ function TutorBadgeAdmin({ person, onChanged }: { person: User; onChanged: () =>
       ? <Button variant="secondary" disabled={busy} onClick={() => void startRevoke()}>Revoke Tutor badge</Button>
       : <Button disabled={busy} onClick={() => void change(true)}>{busy ? 'Granting…' : 'Grant Tutor badge'}</Button>}
     {notice && <p role="status" className="whitespace-pre-line text-sm text-brand-700">{notice}</p>}
-    {!confirming && error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {!confirming && error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     <ConfirmDialog open={confirming} title={'Revoke ' + person.name + '’s Tutor badge?'} confirmLabel="Revoke badge" busy={busy} error={error}
       onConfirm={() => void change(false)} onCancel={() => setConfirming(false)}>
       <p>They will disappear from the tutor directory and no new tutoring requests can be sent to them. Completed tutoring history is kept.</p>
