@@ -1,4 +1,7 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { DB_PATH, getDb, closeDb } from './index';
+import { UPLOAD_DIR } from '../uploads';
 
 // Repeatable seed: wipes demo tables and re-inserts fixed-ID data.
 // `--reset` is accepted for readability; seeding always resets.
@@ -118,10 +121,49 @@ const studyGroupSessions = [
   [5, 4, 'Observer and Strategy patterns', jst(5, '17:00'), jst(5, '18:30'), 'Hillside Campus, Room 301', 'scheduled', 2],
 ] as const;
 
+// Demo uploads. Real (tiny) files are written to the gitignored uploads dir so previews/downloads work out of the box.
+const pdfBody = 'BT /F1 18 Tf 20 70 Td (CS201 hash table cheat sheet) Tj ET';
+const seedFiles: Record<string, Buffer> = {
+  'seed-hash-cheatsheet.pdf': Buffer.from(
+    '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+      '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 144]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n' +
+      `4 0 obj<</Length ${pdfBody.length}>>stream\n${pdfBody}\nendstream endobj\n` +
+      '5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n',
+  ),
+  'seed-loop-trace.png': Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64',
+  ),
+  'seed-process-vs-thread.txt': Buffer.from(
+    'Process vs thread\n- Processes: separate address spaces, isolated, heavier to create.\n- Threads: share memory, cheaper, need synchronisation.\n', 'utf8',
+  ),
+};
+
+// [id, courseId, authorId, title, description, type, url, storedName, originalFilename, mime, createdAt]
+type SeedResource = readonly [number, number, number, string, string, string, string | null, string | null, string | null, string | null, string];
+const resources: readonly SeedResource[] = [
+  [1, 3, 2, 'VisuAlgo: data structure animations', 'Step through BST, heap and hash table operations visually.', 'link', 'https://visualgo.net', null, null, null, '2026-11-03T09:00:00.000Z'],
+  [2, 3, 3, 'Hash table cheat sheet', 'One page: load factor, collision strategies, and complexity.', 'cheatsheet', null, 'seed-hash-cheatsheet.pdf', 'hash-table-cheatsheet.pdf', 'application/pdf', '2026-11-05T12:00:00.000Z'],
+  [3, 1, 5, 'Loop trace diagram', 'How to trace nested loops row by row.', 'notes', null, 'seed-loop-trace.png', 'loop-trace.png', 'image/png', '2026-11-07T08:30:00.000Z'],
+  [4, 8, 4, 'SQL practice problems', 'Interactive joins and aggregation exercises with instant feedback.', 'practice', 'https://sqlzoo.net', null, null, null, '2026-11-09T15:00:00.000Z'],
+  [5, 5, 3, 'MIT 6.006 lecture notes', 'Clear notes on greedy algorithms and dynamic programming.', 'notes', 'https://ocw.mit.edu', null, null, null, '2026-11-11T10:00:00.000Z'],
+  [6, 7, 3, 'Process vs thread summary', 'Quick comparison for the OS midterm.', 'notes', null, 'seed-process-vs-thread.txt', 'process-vs-thread.txt', 'text/plain; charset=utf-8', '2026-11-13T17:00:00.000Z'],
+];
+// [resourceId, userId]
+const resourceVotes = [[1, 1], [1, 3], [2, 1], [2, 2], [2, 5], [3, 2], [4, 1], [5, 2], [5, 4], [6, 2]];
+
+// [id, courseId, creatorId, title, description, startsAt, endsAt, location, max, status, participantIds]
+const oneTimeSessions = [
+  [1, 3, 2, 'Midterm review cram session', 'Walk through past exam questions on trees and hashing. Bring your questions.', jst(2, '15:00'), jst(2, '17:00'), 'Library Room 3C', 8, 'scheduled', [2, 3]],
+  [2, 1, 5, 'Pointers Q&A', 'Open Q&A on references, pointers and memory diagrams.', jst(3, '16:00'), jst(3, '17:00'), 'Online (video link shared in chat)', 10, 'scheduled', [5, 1]],
+  [3, 8, 4, 'SQL join workshop', 'Hands-on practice with inner, outer and self joins.', jst(6, '13:00'), jst(6, '14:30'), 'Hillside Campus, Room 204', 2, 'scheduled', [4, 2]],
+  [4, 3, 2, 'Graph traversal drop-in', 'Cancelled: moved to the regular study circle.', jst(1, '12:00'), jst(1, '13:00'), 'CS Lounge', 6, 'cancelled', [2]],
+] as const;
+
 db.exec('BEGIN');
 try {
   for (const t of [
-    'reply_votes', 'discussion_votes',
+    'reply_votes', 'discussion_votes', 'resource_votes',
+    'one_time_session_participants', 'one_time_sessions',
     'study_group_sessions', 'tutoring_sessions', 'tutor_availability_slots',
     'study_group_members', 'study_groups', 'tutoring_requests', 'tutor_courses', 'tutors',
     'help_requests', 'resources', 'replies', 'discussions', 'enrollments', 'courses', 'users',
@@ -165,11 +207,26 @@ try {
   });
   const sgs = db.prepare('INSERT INTO study_group_sessions (id,group_id,title,starts_at,ends_at,location,status,created_by_id) VALUES (?,?,?,?,?,?,?,?)');
   studyGroupSessions.forEach((r) => sgs.run(...r));
+  const rs = db.prepare(`INSERT INTO resources (id,course_id,author_id,title,description,type,url,stored_name,original_filename,mime_type,size_bytes,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
+  resources.forEach(([id, cid, aid, title, desc, type, url, stored, original, mime, created]) =>
+    rs.run(id, cid, aid, title, desc, type, url, stored, original, mime, stored ? seedFiles[stored].length : null, created));
+  const rvote = db.prepare('INSERT INTO resource_votes (resource_id,user_id) VALUES (?,?)');
+  resourceVotes.forEach((r) => rvote.run(r[0], r[1]));
+  const ot = db.prepare(`INSERT INTO one_time_sessions
+    (id,course_id,creator_id,title,description,starts_at,ends_at,location,max_participants,status) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+  const otp = db.prepare('INSERT INTO one_time_session_participants (session_id,user_id) VALUES (?,?)');
+  oneTimeSessions.forEach(([id, cid, creator, title, desc, starts, ends, loc, max, status, people]) => {
+    ot.run(id, cid, creator, title, desc, starts, ends, loc, max, status);
+    people.forEach((p) => otp.run(id, p));
+  });
+  mkdirSync(UPLOAD_DIR, { recursive: true });
+  for (const [name, data] of Object.entries(seedFiles)) writeFileSync(join(UPLOAD_DIR, name), data);
   db.exec('COMMIT');
 } catch (err) {
   db.exec('ROLLBACK');
   throw err;
 }
 
-console.log(`Seeded ${users.length} users, ${courses.length} courses, ${tutors.length} tutors, ${discussions.length} discussions, ${replies.length} replies, ${slots.length} availability slots, ${tutoringSessions.length} tutoring sessions, ${studyGroups.length} study groups into ${DB_PATH}`);
+console.log(`Seeded ${users.length} users, ${courses.length} courses, ${tutors.length} tutors, ${discussions.length} discussions, ${replies.length} replies, ${slots.length} availability slots, ${tutoringSessions.length} tutoring sessions, ${studyGroups.length} study groups, ${resources.length} resources, ${oneTimeSessions.length} one-time sessions into ${DB_PATH}`);
 closeDb();

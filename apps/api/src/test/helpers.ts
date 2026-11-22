@@ -6,7 +6,9 @@ import type { AddressInfo } from 'node:net';
 import { DEMO_USER_HEADER } from '@tunion/shared';
 
 export interface TestApi {
-  call: (method: string, path: string, opts?: { user?: number; body?: unknown }) => Promise<{ status: number; json: any }>;
+  call: (method: string, path: string, opts?: { user?: number; body?: unknown; form?: FormData }) => Promise<{ status: number; json: any }>;
+  /** Like call() but returns the raw Response (for binary downloads and header checks). */
+  raw: (method: string, path: string, opts?: { user?: number }) => Promise<Response>;
   close: () => Promise<void>;
 }
 
@@ -29,9 +31,14 @@ export async function startTestApi(): Promise<TestApi> {
       const res = await fetch(base + path, {
         method,
         headers,
-        body: typeof opts.body === 'string' ? opts.body : opts.body === undefined ? undefined : JSON.stringify(opts.body),
+        body: opts.form ?? (typeof opts.body === 'string' ? opts.body : opts.body === undefined ? undefined : JSON.stringify(opts.body)),
       });
       return { status: res.status, json: await res.json() };
+    },
+    async raw(method, path, opts = {}) {
+      const headers: Record<string, string> = {};
+      if (opts.user !== undefined) headers[DEMO_USER_HEADER] = String(opts.user);
+      return fetch(base + path, { method, headers });
     },
     async close() {
       await new Promise((r) => server.close(r));
