@@ -80,7 +80,7 @@ export default function OneTimeSessions({ course, enrolled }: { course: string; 
       <LocationField />
       <Field label="Meeting details or link"><input name="locationDetails" maxLength={280} className={field} /></Field>
       <Field label="Participant limit"><input type="number" name="maxParticipants" min={2} max={50} defaultValue={10} required className={field} /></Field>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
       <Button type="submit" disabled={saving}>{saving ? 'Publishing…' : 'Publish one-time session'}</Button>
     </form></Card>}
     {query.loading || query.error ? <Empty>{query.error ?? 'Loading one-time sessions…'}</Empty>
@@ -139,6 +139,6 @@ function SessionCard({ session, refresh, refreshing, detail = false }: { session
         if (window.confirm('Cancel this one-time session?')) void change('cancel');
       }}>Cancel session</Button>}
     </div>}
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
   </Card>;
 }

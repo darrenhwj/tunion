@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Course } from '@tunion/shared';
-import Card from '../components/Card';
-import Badge from '../components/Badge';
-import { Empty } from '../components/CommunityUI';
+import { action, Empty } from '../components/CommunityUI';
 import DashboardCalendar from '../components/DashboardCalendar';
 import Glyph from '../components/Glyph';
 import { useCommunity } from '../demo/community';
 import { useDemoAuth } from '../lib/demoAuth';
 import { IncomingTutoringRequests } from './TutoringActivity';
-import collage from '../assets/campus-collage.jpg';
+import wordmark from '../assets/brand/tunion-wordmark-white.svg';
+import blossoms from '../assets/photos/landing/temple-campus-blossoms.webp';
+import classroom from '../assets/photos/landing/temple-classroom-study.webp';
+import mascot from '../assets/photos/landing/temple-students-mascot.webp';
+import { CourseCard } from './CoursesPage';
 
 export default function HomePage() {
   const { current, loading } = useDemoAuth();
@@ -18,13 +19,19 @@ export default function HomePage() {
 }
 
 function PublicLanding() {
-  return <section className="overflow-hidden rounded-2xl bg-[#242058] text-white sm:grid lg:grid-cols-[0.85fr_1.15fr]">
-    <div className="flex flex-col justify-center p-6 sm:p-10">
-      <span className="mb-5 grid size-12 place-items-center rounded-xl bg-white/15"><Glyph name="brand" className="size-6" /></span>
-      <h1 className="text-5xl font-extrabold tracking-tight sm:text-7xl">TUnion</h1>
-      <p className="mt-4 max-w-md text-base leading-7 text-indigo-100">Your computer science peer-learning community. Find classmates, work through tough topics together, and get help from student tutors.</p>
+  return <section className="landing" aria-labelledby="landing-heading">
+    <div className="landing-copy">
+      <img src={wordmark} alt="TUnion" className="w-full max-w-[26rem]" fetchPriority="high" />
+      <p className="mt-4 text-xl font-bold text-ink-700 sm:text-2xl">CS Peer Learning</p>
+      <h1 id="landing-heading" className="mt-8 text-3xl font-extrabold tracking-tight sm:mt-10 sm:text-4xl">Welcome to TUnion</h1>
+      <p className="mt-3 max-w-sm text-base leading-7 text-ink-700">Ask classmates for help, share resources, and work through tough topics with peer tutors.</p>
+      <Link to="/courses" className={action + ' mt-8'}>Explore courses <Glyph name="arrow" className="size-5" /></Link>
     </div>
-    <img src={collage} alt="A university courtyard and students learning together on campus" className="aspect-[3/2] h-full w-full object-cover" />
+    <div className="landing-photos">
+      <img src={mascot} alt="Temple students posing with the university mascot" className="landing-mascot" />
+      <img src={blossoms} alt="Cherry blossoms outside a Temple campus building" className="landing-campus" />
+      <img src={classroom} alt="Students working together in class" className="landing-classroom" />
+    </div>
   </section>;
 }
 
@@ -39,26 +46,14 @@ function StudentDashboard({ accountId, canTutor }: { accountId: number; canTutor
     {canTutor && <IncomingTutoringRequests userId={accountId} onChange={() => setCalendarRevision((previous) => previous + 1)} />}
     <section aria-labelledby="my-courses" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="my-courses" className="text-xl font-bold tracking-tight">My Courses</h2>
-        <Link to="/courses" className="text-sm font-semibold text-brand-700 hover:underline">Browse courses →</Link>
+        <h2 id="my-courses" className="text-xl font-bold tracking-tight uppercase">My Courses</h2>
+        <Link to="/courses" className="inline-flex items-center gap-2 text-sm font-semibold hover:underline">Browse courses <Glyph name="arrow" className="size-5" /></Link>
       </div>
       {loading || enrollmentsLoading || error ? <Empty>{error || 'Loading courses…'}</Empty>
         : !currentCourses.length ? <Empty>You have no current courses.</Empty>
-        : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {currentCourses.map((course) => <CourseTile key={course.id} course={course} />)}
+        : <div className="course-grid">
+          {currentCourses.map((course) => <CourseCard key={course.id} course={course} dashboard />)}
         </div>}
     </section>
   </>;
-}
-
-function CourseTile({ course }: { course: Course }) {
-  return <Link to={'/courses/' + course.id} className="group min-w-0">
-    <Card className="flex h-full min-w-0 items-start gap-3 p-4 group-hover:border-brand-500">
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700"><Glyph name="courses" className="size-4" /></span>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-brand-700">{course.code}</span><Badge>Current</Badge></div>
-        <h3 className="mt-1 break-words text-sm font-semibold">{course.title}</h3>
-      </div>
-    </Card>
-  </Link>;
 }

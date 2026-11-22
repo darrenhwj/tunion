@@ -17,12 +17,12 @@ export default function DemoAccountSwitcher() {
   }, [selectorOpen]);
 
   return <>
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="site-account">
       <Badge tone="warning">Demo auth - not secure</Badge>
-      <Button variant="secondary" onClick={openSelector}>{current ? 'Switch demo account' : 'Sign In'}</Button>
+      <Button onClick={openSelector}>{current ? 'Switch demo account' : 'Sign In'}</Button>
     </div>
     <dialog ref={dialog} aria-labelledby="demo-selector-title" onCancel={closeSelector}
-      className="m-auto max-h-[85dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl border border-line bg-surface p-5 text-ink-900 shadow-xl backdrop:bg-ink-900/50">
+      className="m-auto max-h-[85dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl border border-line bg-surface p-5 text-ink-900 shadow-xl backdrop:bg-black/75">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 id="demo-selector-title" className="text-lg font-bold">Choose a demo account</h2>
         <Button variant="ghost" onClick={closeSelector}>Close</Button>

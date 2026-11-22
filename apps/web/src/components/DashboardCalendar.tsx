@@ -86,9 +86,9 @@ export default function DashboardCalendar({ accountId, canTutor, revision = 0 }:
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-bold">{monthLabel} <span className="text-xs font-medium text-ink-500">JST</span></h3>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" aria-label="Previous month" onClick={() => move(-1)}>←</Button>
+              <Button variant="ghost" aria-label="Previous month" onClick={() => move(-1)}><Glyph name="arrowLeft" className="size-4" /></Button>
               <Button variant="ghost" onClick={() => { setMonth(today.slice(0, 7)); setDay(today); }}>Today</Button>
-              <Button variant="ghost" aria-label="Next month" onClick={() => move(1)}>→</Button>
+              <Button variant="ghost" aria-label="Next month" onClick={() => move(1)}><Glyph name="arrow" className="size-4" /></Button>
             </div>
           </div>
           <div className="grid grid-cols-7 gap-1 text-center">
@@ -110,7 +110,7 @@ export default function DashboardCalendar({ accountId, canTutor, revision = 0 }:
           </div>
           <div key={month + (day ?? '')} role="region" aria-labelledby="calendar-agenda-heading" aria-live="polite" tabIndex={0} className="h-[22rem] space-y-2 overflow-y-auto overscroll-contain pr-2">
             {query.loading ? <p className="text-sm text-ink-500">Loading sessions…</p>
-              : query.error ? <p role="alert" className="text-sm text-red-700">{query.error} <button type="button" className={textLink} onClick={query.refresh}>Retry</button></p>
+              : query.error ? <p role="alert" className="text-sm text-red-300">{query.error} <button type="button" className={textLink} onClick={query.refresh}>Retry</button></p>
               : events.length ? events.map((event) => <div key={event.url} className="space-y-1 rounded-lg border border-line p-3">
                 <div className="flex flex-wrap gap-2"><Badge tone="brand">{event.course}</Badge><Badge>{eventKinds[event.kind].label}</Badge>{event.status === 'completed' && <Badge>Completed</Badge>}</div>
                 <Link to={event.url} className={textLink + ' line-clamp-1 break-words'}>{event.title}</Link>

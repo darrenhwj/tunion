@@ -20,21 +20,21 @@ function getCourseLevel(code: string) {
   return courseLevels.includes(level) ? level : undefined;
 }
 
-export function CourseCard({ course }: { course: Course }) {
+export function CourseCard({ course, dashboard = false }: { course: Course; dashboard?: boolean }) {
   const level = getCourseLevel(course.code);
-  return <Link to={'/courses/' + course.id} className="group block h-full">
-    <Card className="flex h-full flex-col gap-3 transition group-hover:border-brand-500">
-      <div className="flex items-center justify-between gap-2">
-        <span className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-700"><Glyph name="courses" /></span>
-        {level !== undefined && <Badge>{level} level</Badge>}
-      </div>
-      <p className="text-xs font-bold tracking-wide text-brand-700">{course.code}</p>
-      <h3 className="text-lg font-bold leading-tight">{course.title}</h3>
-      <div className="flex-1">
-        <p className="line-clamp-3 wrap-anywhere text-sm leading-6 text-ink-500">{course.description}</p>
-      </div>
-      <span className="flex items-center gap-2 text-sm font-semibold text-brand-700">View course <Glyph name="arrow" className="size-4" /></span>
-    </Card>
+  return <Link to={'/courses/' + course.id} className={'course-facet group flex min-w-0 flex-col gap-3 ' + (dashboard ? 'course-facet-dashboard' : '')}>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pr-8">
+      <Glyph name="courses" className="size-9 shrink-0" />
+      <p className="text-sm font-bold">{course.code}</p>
+      {dashboard ? <Badge>Current</Badge> : level !== undefined && <Badge>{level} level</Badge>}
+    </div>
+    <h3 className="wrap-anywhere text-lg font-bold leading-tight">{course.title}</h3>
+    <div className="flex-1">
+      <p className="line-clamp-3 wrap-anywhere text-sm leading-6 text-ink-700">{course.description}</p>
+    </div>
+    <span className="mt-2 flex items-center gap-3 text-sm font-semibold group-hover:underline">
+      View course <Glyph name="arrow" className="size-5" />
+    </span>
   </Link>;
 }
 
@@ -64,20 +64,24 @@ export function CoursesPage() {
 
   return <>
     <PageHeading title="Course directory" description="Find a course to connect with classmates, ask questions, and share study materials." />
-    <Card className="grid gap-4 sm:grid-cols-[1fr_180px]">
-      <Field label="Search courses"><input type="search" maxLength={100} value={query} onChange={(event) => setQuery(event.target.value)} className={field} placeholder="Search by code or topic" /></Field>
-      <Field label="Course level"><select className={field} value={level} onChange={(event) => setLevel(event.target.value)}>
-        <option value="">All levels</option>{courseLevels.map((value) => <option key={value} value={value}>{value} level</option>)}
-      </select></Field>
-    </Card>
-    {loading || enrollmentsLoading || error || enrollmentsError
-      ? <Empty>{error || enrollmentsError || 'Loading courses…'}</Empty>
-      : sections.map((section) => <section key={section.id} aria-labelledby={section.id} className="space-y-3">
-        <h2 id={section.id} className="text-xl font-bold tracking-tight">{section.title}</h2>
-        {section.courses.length
-          ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{section.courses.map((course) => <CourseCard key={course.id} course={course} />)}</div>
-          : <Empty>{filtering ? 'No courses match your filters.' : section.empty}</Empty>}
-      </section>)}
+    <div className="items-start gap-6 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]">
+      <Card className="course-filter mb-6 grid gap-4 sm:grid-cols-[1fr_180px] lg:mb-0 lg:grid-cols-1">
+        <Field label="Search courses"><input type="search" maxLength={100} value={query} onChange={(event) => setQuery(event.target.value)} className={field} placeholder="Search by code or topic" /></Field>
+        <Field label="Course level"><select className={field} value={level} onChange={(event) => setLevel(event.target.value)}>
+          <option value="">All levels</option>{courseLevels.map((value) => <option key={value} value={value}>{value} level</option>)}
+        </select></Field>
+      </Card>
+      <div className="min-w-0 space-y-7">
+        {loading || enrollmentsLoading || error || enrollmentsError
+          ? <Empty>{error || enrollmentsError || 'Loading courses…'}</Empty>
+          : sections.map((section) => <section key={section.id} aria-labelledby={section.id} className="space-y-3">
+            <h2 id={section.id} className="text-xl font-bold tracking-tight">{section.title}</h2>
+            {section.courses.length
+              ? <div className="course-grid">{section.courses.map((course) => <CourseCard key={course.id} course={course} />)}</div>
+              : <Empty>{filtering ? 'No courses match your filters.' : section.empty}</Empty>}
+          </section>)}
+      </div>
+    </div>
   </>;
 }
 
@@ -96,7 +100,7 @@ export function CoursePage() {
     <PageHeading label={course.code} title={course.title} description={course.description}>
       {current && <Button variant={enrolled ? 'secondary' : 'primary'} onClick={() => setEnrollment(course.id, enrolled ? 'completed' : 'current').then(() => setActionError(''), (e: Error) => setActionError(e.message))}>{enrolled ? 'Leave course' : 'Join course'}</Button>}
     </PageHeading>
-    {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
+    {actionError && <p role="alert" className="text-sm text-red-300">{actionError}</p>}
     <Tabs label="Course sections" links={[{ to: base, label: 'Discussions' }, { to: base + '/resources', label: 'Resources' }, { to: base + '/people', label: 'People' }]} />
     <Outlet context={course} />
   </>;

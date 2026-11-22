@@ -88,7 +88,7 @@ function AvailabilityEditor() {
         </div>
       </fieldset></form>
     </Card> : <Button disabled={pending} onClick={() => { setError(''); setEditing('new'); }}>Add weekly slot</Button>}
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     {query.data.slots.length ? query.data.slots.map((item) => <Card key={item.id} className="flex flex-wrap items-center justify-between gap-3">
       <div><h2 className="font-semibold">{weekdays[item.dayOfWeek]} · {item.startTime}–{item.endTime} JST</h2><p className="text-sm text-ink-500">{LOCATION_TYPE_LABELS[item.locationType]}</p></div>
       <div className="flex gap-2">
@@ -147,7 +147,7 @@ function SubjectsEditor() {
       </label>)}
     </fieldset>
     <Button disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save subjects'}</Button>
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     {saved && <p role="status" className="text-sm text-brand-700">Subjects saved.</p>}
   </Card>;
 }

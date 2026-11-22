@@ -5,15 +5,15 @@ import { useCommunity } from '../demo/community';
 import { useDemoAuth } from '../lib/demoAuth';
 import Card from './Card';
 
-export const field = 'w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100';
-export const action = 'inline-flex items-center rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700';
+export const field = 'w-full rounded-md border border-line bg-white/10 px-3 py-2.5 text-sm text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/60';
+export const action = 'facet-button inline-flex items-center gap-3 bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-red-800';
 export const textLink = 'text-sm font-semibold text-brand-700 hover:underline';
 
 export function PageHeading({ label, title, description, children }: { label?: string; title: string; description?: string; children?: ReactNode }) {
   return <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
       {label && <p className="mb-2 text-xs font-bold uppercase tracking-widest text-brand-700">{label}</p>}
-      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>
+      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
       {description && <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-500">{description}</p>}
     </div>
     {children}

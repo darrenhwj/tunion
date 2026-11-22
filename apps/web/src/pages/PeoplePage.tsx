@@ -123,7 +123,7 @@ function ProfileBio({ person, canEdit, onSaved }: { person: User; canEdit: boole
         onChange={(event) => setDraft(event.target.value)} />
     </Field>
     <p className="text-sm text-ink-500">{draft.length} / {MAX_BIO_LENGTH} characters</p>
-    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     <div className="flex gap-2">
       <Button type="submit" disabled={saving || draft.length > MAX_BIO_LENGTH}>{saving ? 'Saving…' : 'Save'}</Button>
       <Button type="button" variant="secondary" disabled={saving} onClick={() => { setError(''); setDraft(null); }}>Cancel</Button>

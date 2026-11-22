@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'ghost';
 const variants: Record<Variant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700',
+  primary: 'facet-button bg-brand-600 text-white hover:bg-red-800',
   secondary: 'bg-surface text-ink-700 border border-line hover:bg-canvas',
   ghost: 'text-ink-700 hover:bg-brand-50',
 };
