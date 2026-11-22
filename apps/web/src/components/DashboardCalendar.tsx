@@ -48,11 +48,11 @@ async function loadCalendar(key: string, signal: AbortSignal): Promise<CalendarE
   return events;
 }
 
-export default function DashboardCalendar({ accountId, canTutor }: { accountId: number; canTutor: boolean }) {
+export default function DashboardCalendar({ accountId, canTutor, revision = 0 }: { accountId: number; canTutor: boolean; revision?: number }) {
   const today = todayJst();
   const [month, setMonth] = useState(today.slice(0, 7));
   const [day, setDay] = useState<string | null>(null);
-  const query = useApiQuery(month + ':' + accountId, loadCalendar);
+  const query = useApiQuery(month + ':' + accountId + ':' + revision, loadCalendar);
   const start = monthStart(month, 0);
   const first = new Date(start + 'T00:00:00Z');
   const dayCount = new Date(Date.parse(monthStart(month, 1)) - 86400000).getUTCDate();

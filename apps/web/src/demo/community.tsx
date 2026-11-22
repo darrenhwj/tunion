@@ -32,7 +32,8 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Community>(() => {
     try {
       const saved = localStorage.getItem(storageKey);
-      return saved ? JSON.parse(saved) as Community : initialCommunity;
+      const cached = saved ? JSON.parse(saved) as Partial<Community> | null : null;
+      return Array.isArray(cached?.groups) ? { groups: cached.groups } : initialCommunity;
     } catch {
       return initialCommunity;
     }

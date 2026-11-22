@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Course } from '@tunion/shared';
 import Card from '../components/Card';
@@ -7,6 +8,7 @@ import DashboardCalendar from '../components/DashboardCalendar';
 import Glyph from '../components/Glyph';
 import { useCommunity } from '../demo/community';
 import { useDemoAuth } from '../lib/demoAuth';
+import { IncomingTutoringRequests } from './TutoringActivity';
 import collage from '../assets/campus-collage.jpg';
 
 export default function HomePage() {
@@ -27,12 +29,14 @@ function PublicLanding() {
 }
 
 function StudentDashboard({ accountId, canTutor }: { accountId: number; canTutor: boolean }) {
+  const [calendarRevision, setCalendarRevision] = useState(0);
   const { courses, loading, courseError, myCourses, enrollmentsLoading, enrollmentsError } = useCommunity();
   const currentCourses = courses.filter((course) => myCourses.current.includes(course.id));
   const error = courseError || enrollmentsError;
 
   return <>
-    <DashboardCalendar accountId={accountId} canTutor={canTutor} />
+    <DashboardCalendar accountId={accountId} canTutor={canTutor} revision={calendarRevision} />
+    {canTutor && <IncomingTutoringRequests userId={accountId} onChange={() => setCalendarRevision((previous) => previous + 1)} />}
     <section aria-labelledby="my-courses" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="my-courses" className="text-xl font-bold tracking-tight">My Courses</h2>

@@ -73,6 +73,8 @@ describe('calendar endpoints', () => {
       }
       const req = await api.call('POST', '/api/tutoring-requests', { user: 1, body: { courseId: 5, tutorId: 1, topic: 'Calendar check' } });
       const id = req.json.request.id;
+      const { getDb } = await import('../db');
+      getDb().exec("INSERT INTO tutor_availability_slots (tutor_id, day_of_week, start_time, end_time, location_type) VALUES (1, 2, '10:00', '11:00', 'online')");
       await api.call('POST', `/api/tutoring-requests/${id}/approve`, {
         user: 3, body: { startsAt: '2030-03-05T10:00:00+09:00', endsAt: '2030-03-05T11:00:00+09:00', locationType: 'online' },
       });

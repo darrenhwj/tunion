@@ -68,6 +68,12 @@ export function migrate(database: DatabaseSync): void {
     if (!names.includes(col)) database.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`);
   }
   renameLegacyAdmin(database);
+  const requestColumns = database.prepare('PRAGMA table_info(tutoring_requests)').all() as { name: string }[];
+  for (const column of ['requested_starts_at', 'requested_ends_at', 'requested_location_type', 'requested_location_details']) {
+    if (!requestColumns.some(({ name }) => name === column)) {
+      database.exec(`ALTER TABLE tutoring_requests ADD COLUMN ${column} TEXT`);
+    }
+  }
   if (legacyRequests) {
     database.exec('BEGIN');
     try {

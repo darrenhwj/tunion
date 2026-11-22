@@ -2,7 +2,6 @@ import type { StudyGroup } from '@tunion/shared';
 
 export interface Community {
   groups: StudyGroup[];
-  downvotes?: Record<string, boolean>;
 }
 const createdAt = '2026-11-20T09:00:00Z';
 

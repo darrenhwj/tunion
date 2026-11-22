@@ -114,6 +114,11 @@ export function toTutoringRequest(r: Row): TutoringRequestDetail {
     student: { id: r.student_id as number, name: r.student_name as string, role: r.student_role as UserRole },
     tutor: r.tutor_user_id == null ? null : { id: r.tutor_user_id as number, name: r.tutor_name as string, role: r.tutor_role as UserRole },
     slotId: (r.slot_id as number | null) ?? null,
+    requestedMeeting: r.requested_starts_at ? {
+      ...timeRange(r.requested_starts_at as string, r.requested_ends_at as string),
+      locationType: r.requested_location_type as LocationType,
+      locationDetails: r.requested_location_details as string,
+    } : null,
     proposal,
     tutorNote: r.tutor_note as string,
     sessionId: (r.session_id as number | null) ?? null,
