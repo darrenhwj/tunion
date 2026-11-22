@@ -13,6 +13,8 @@ interface DemoAuthState {
   openSelector: () => void;
   closeSelector: () => void;
   switchTo: (id: number | null) => void;
+  /** Re-reads the account list (e.g. after an admin changes a Tutor badge). */
+  refreshAccounts: () => void;
 }
 
 const Ctx = createContext<DemoAuthState | null>(null);
@@ -24,12 +26,13 @@ export function DemoAuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refreshAccounts = () => {
     api<ListDemoAccountsResponse>('/demo-auth/accounts')
       .then((r) => setAccounts(r.accounts))
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  };
+  useEffect(refreshAccounts, []);
 
   const switchTo = (id: number | null) => {
     storeDemoUserId(id);
@@ -37,7 +40,7 @@ export function DemoAuthProvider({ children }: { children: ReactNode }) {
   };
 
   const current = accounts.find((a) => a.id === currentId) ?? null;
-  return <Ctx.Provider value={{ accounts, current, loading, error, switchTo, selectorOpen, openSelector: () => setSelectorOpen(true), closeSelector: () => setSelectorOpen(false) }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ accounts, current, loading, error, switchTo, refreshAccounts, selectorOpen, openSelector: () => setSelectorOpen(true), closeSelector: () => setSelectorOpen(false) }}>{children}</Ctx.Provider>;
 }
 
 export function useDemoAuth(): DemoAuthState {

@@ -51,11 +51,20 @@ tutoringRequestsRouter.post('/', (req, res) => {
   if (!tutor) throw new HttpError(404, 'Tutor not found');
   if (tutor.is_active !== 1 || (tutor.is_hidden === 1 && tutor.role !== 'admin')) throw new HttpError(400, 'This tutor is no longer available');
   if (tutor.user_id === user.id) throw new HttpError(400, 'You cannot request tutoring from yourself');
+  if (!db.prepare('SELECT 1 FROM tutor_courses WHERE tutor_id = ?').get(tutorId)) {
+    throw new HttpError(400, 'This tutor has not chosen any tutoring subjects yet');
+  }
   if (!db.prepare('SELECT 1 FROM tutor_courses WHERE tutor_id = ? AND course_id = ?').get(tutorId, courseId)) {
     throw new HttpError(400, 'This tutor does not tutor that course');
   }
+  if (!db.prepare('SELECT 1 FROM tutor_availability_slots WHERE tutor_id = ?').get(tutorId)) {
+    throw new HttpError(400, 'This tutor has not set any weekly availability yet');
+  }
   if (slotId !== null && !db.prepare('SELECT 1 FROM tutor_availability_slots WHERE id = ? AND tutor_id = ?').get(slotId, tutorId)) {
     throw new HttpError(400, 'slotId does not belong to that tutor');
+  }
+  if (db.prepare("SELECT 1 FROM tutoring_requests WHERE student_id = ? AND tutor_id = ? AND course_id = ? AND status IN ('open','accepted')").get(user.id, tutorId, courseId)) {
+    throw new HttpError(409, 'You already have a pending request with this tutor for that course');
   }
   const now = nowIso();
   const { lastInsertRowid } = db

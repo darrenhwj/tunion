@@ -40,7 +40,10 @@ CREATE TABLE IF NOT EXISTS discussions (
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   is_resolved INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Soft delete by an admin: the row, its replies and votes are kept; the post just stops being served.
+  deleted_at TEXT,
+  deleted_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS replies (

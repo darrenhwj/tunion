@@ -13,7 +13,17 @@ describe('tutoring requests and sessions', () => {
     startsAt: `2030-01-${day}T${from}:00+09:00`, endsAt: `2030-01-${day}T${to}:00+09:00`,
     locationType: 'city_campus', locationDetails: 'Library Room 2B', note: 'See you then',
   });
+  /** A student may have only one pending request per tutor and course, so withdraw leftovers before re-requesting. */
+  async function clearPending(student: number, tutorId: number, courseId: number) {
+    const mine = await api.call('GET', '/api/tutoring-requests?role=student', { user: student });
+    for (const q of mine.json.requests as { id: number; tutorId: number; courseId: number; status: string }[]) {
+      if (q.tutorId === tutorId && q.courseId === courseId && (q.status === 'open' || q.status === 'accepted')) {
+        await api.call('POST', `/api/tutoring-requests/${q.id}/cancel`, { user: student });
+      }
+    }
+  }
   async function newRequest(student: number, tutorId: number, courseId: number, topic = 'Topic for tutoring') {
+    await clearPending(student, tutorId, courseId);
     const r = await api.call('POST', '/api/tutoring-requests', { user: student, body: { courseId, tutorId, topic, details: 'Need help' } });
     assert.equal(r.status, 201, JSON.stringify(r.json));
     return r.json.request as { id: number };
@@ -21,6 +31,7 @@ describe('tutoring requests and sessions', () => {
 
   describe('creating requests', () => {
     it('creates an open request addressed to the tutor', async () => {
+      await clearPending(1, 1, 3);
       const r = await api.call('POST', '/api/tutoring-requests', { user: 1, body: { courseId: 3, tutorId: 1, topic: 'Tree traversals', slotId: 1 } });
       assert.equal(r.status, 201);
       assert.equal(r.json.request.status, 'open');

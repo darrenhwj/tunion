@@ -29,10 +29,20 @@ const REPLY_SELECT = `
     EXISTS (SELECT 1 FROM reply_votes v WHERE v.reply_id = r.id AND v.user_id = :viewer) AS has_upvoted
   FROM replies r JOIN users u ON u.id = r.author_id`;
 
+export const DELETED_MESSAGE = 'This discussion was deleted by a moderator';
+
 function loadDiscussion(id: number, viewer: number): DiscussionSummary {
   const row = getDb().prepare(`${SUMMARY_SELECT} WHERE d.id = :id`).get({ id, viewer });
   if (!row) throw new HttpError(404, 'Discussion not found');
+  if (row.deleted_at) throw new HttpError(410, DELETED_MESSAGE);
   return toDiscussionSummary(row);
+}
+
+/** 404 for a missing discussion, 410 for a soft-deleted one. */
+function assertLive(id: number): void {
+  const row = getDb().prepare('SELECT deleted_at FROM discussions WHERE id = ?').get(id) as { deleted_at: string | null } | undefined;
+  if (!row) throw new HttpError(404, 'Discussion not found');
+  if (row.deleted_at) throw new HttpError(410, DELETED_MESSAGE);
 }
 
 function loadReply(id: number, viewer: number): ThreadedReply {
@@ -60,7 +70,7 @@ const viewerId = (req: { demoUser?: { id: number } }) => req.demoUser?.id ?? 0;
 
 // GET /api/discussions?courseId=&q=&resolved=&sort=&limit=&offset=
 discussionsRouter.get('/', (req, res) => {
-  const where: string[] = [];
+  const where: string[] = ['d.deleted_at IS NULL'];
   const params: Record<string, string | number> = { viewer: viewerId(req) };
   if (req.query.courseId !== undefined) {
     where.push('d.course_id = :courseId');
@@ -82,7 +92,7 @@ discussionsRouter.get('/', (req, res) => {
   params.limit = queryInt(req.query.limit, 'limit', 1, 100, 50);
   params.offset = queryInt(req.query.offset, 'offset', 0, 1_000_000, 0);
   const order = sort === 'top' ? 'upvote_count DESC, d.created_at DESC, d.id DESC' : 'd.created_at DESC, d.id DESC';
-  const sql = `${SUMMARY_SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY ${order} LIMIT :limit OFFSET :offset`;
+  const sql = `${SUMMARY_SELECT} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT :limit OFFSET :offset`;
   const rows = getDb().prepare(sql).all(params);
   res.json({ discussions: rows.map(toDiscussionSummary) } satisfies ListDiscussionsResponse);
 });
@@ -115,7 +125,7 @@ discussionsRouter.post('/:id/replies', requireDemoUser, (req, res) => {
   const text = str(body, 'body', 1, 10_000);
   const parentReplyId = body.parentReplyId == null ? null : parseId(body.parentReplyId, 'parentReplyId');
   const db = getDb();
-  if (!db.prepare('SELECT 1 FROM discussions WHERE id = ?').get(id)) throw new HttpError(404, 'Discussion not found');
+  assertLive(id);
   if (parentReplyId !== null) {
     const parent = db.prepare('SELECT discussion_id FROM replies WHERE id = ?').get(parentReplyId) as { discussion_id: number } | undefined;
     if (!parent) throw new HttpError(404, 'Parent reply not found');
@@ -143,6 +153,7 @@ function setAccepted(accept: boolean) {
     const db = getDb();
     const reply = db.prepare('SELECT id, discussion_id FROM replies WHERE id = ?').get(id) as { id: number; discussion_id: number } | undefined;
     if (!reply) throw new HttpError(404, 'Reply not found');
+    assertLive(reply.discussion_id);
     const disc = db.prepare('SELECT author_id FROM discussions WHERE id = ?').get(reply.discussion_id) as { author_id: number };
     if (disc.author_id !== user.id && user.role === 'student') {
       throw new HttpError(403, 'Only the discussion author or a tutor/TA/admin can mark helpful answers');

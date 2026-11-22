@@ -1,9 +1,10 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import type { AcceptReplyResponse, CreateReplyRequest, CreateReplyResponse, GetDiscussionResponse, ThreadedReply, VoteResponse } from '@tunion/shared';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import type { AcceptReplyResponse, AdminDeleteDiscussionResponse, CreateReplyRequest, CreateReplyResponse, GetDiscussionResponse, ThreadedReply, VoteResponse } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { Empty, Field, PageHeading, RequireAccount, dateLabel, field, textLink } from '../components/CommunityUI';
 import { useCommunity } from '../demo/community';
 import { api, postJson } from '../lib/api';
@@ -15,7 +16,7 @@ import { AuthorLink } from './DiscussionsPage';
 export default function DiscussionPage() {
   const { discussionId = '' } = useParams();
   const query = useApiQuery(discussionId, fetchDiscussion);
-  if (!query.data) return <Empty>{query.error ?? 'Loading discussion…'}</Empty>;
+  if (!query.data) return query.error ? <><Link to="/discussions" className={textLink}>← Discussions</Link><Empty>{query.error}</Empty></> : <Empty>Loading discussion…</Empty>;
   return <DiscussionThread key={discussionId} thread={query.data} refreshing={query.refreshing} refresh={query.refresh} />;
 }
 
@@ -94,6 +95,7 @@ function DiscussionThread({ thread, refreshing, refresh }: { thread: GetDiscussi
       <p className="whitespace-pre-wrap break-words leading-7">{body}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant={post.hasUpvoted ? 'primary' : 'secondary'} disabled={!current || current.id === post.authorId || pending} aria-label="Upvote discussion" aria-pressed={post.hasUpvoted} onClick={vote}>↑</Button>
+        {current?.role === 'admin' && <AdminDeleteButton postId={post.id} courseId={post.courseId} />}
         <span aria-live="polite" className="text-sm font-semibold">{post.upvoteCount} {post.upvoteCount === 1 ? 'upvote' : 'upvotes'}</span>
         <Button type="button" variant={downvoted ? 'primary' : 'secondary'} disabled={!current || pending} aria-label="Downvote discussion on this browser" aria-pressed={downvoted} onClick={downvote}>↓ Local downvote</Button>
       </div>
@@ -140,4 +142,29 @@ function ReplyForm({ parent, cancel, pending, submit }: { parent: ThreadedReply 
 
 function ReplyField({ name, label }: { name: string; label: string }) {
   return <Field label={label}><textarea name={name} className={field} rows={3} required maxLength={10000} onChange={(event) => event.target.setCustomValidity(event.target.value.trim() ? '' : 'Enter ' + label.toLowerCase() + '.')} /></Field>;
+}
+
+/** Admin-only. The API re-checks the role; a non-admin who forged this request would get 403. */
+function AdminDeleteButton({ postId, courseId }: { postId: number; courseId: number }) {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function remove() {
+    setBusy(true);
+    setError('');
+    try {
+      await api<AdminDeleteDiscussionResponse>('/admin/discussions/' + postId, { method: 'DELETE' });
+      navigate('/courses/' + courseId, { replace: true });
+    } catch (failure) {
+      setError(errorMessage(failure));
+      setBusy(false);
+    }
+  }
+  return <>
+    <Button type="button" variant="secondary" className="border-red-300 text-red-700" onClick={() => { setError(''); setOpen(true); }}>Delete Post</Button>
+    <ConfirmDialog open={open} title="Delete this post?" confirmLabel="Delete post" busy={busy} error={error} onConfirm={() => void remove()} onCancel={() => setOpen(false)}>
+      <p>This removes the post from discussions for everyone. Its replies and votes are kept in the database but no longer shown.</p>
+    </ConfirmDialog>
+  </>;
 }

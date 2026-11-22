@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type {
-  AvailabilitySlot, CreateAvailabilitySlotResponse, DeleteResponse, GetTutorResponse, ListAvailabilityResponse,
-  ListTutorsResponse, LocationType, UpdateAvailabilitySlotResponse,
+  AvailabilitySlot, CreateAvailabilitySlotResponse, DeleteResponse, GetMyTutorResponse, GetTutorResponse, ListAvailabilityResponse,
+  ListTutorsResponse, LocationType, SetTutorSubjectsResponse, UpdateAvailabilitySlotResponse,
 } from '@tunion/shared';
 import { LOCATION_TYPES } from '@tunion/shared';
 import { getDb } from '../db';
@@ -63,7 +63,34 @@ function ownSlot(tutorId: number, slotId: number) {
   return toSlot(row);
 }
 
-// ---- own availability (declared before /:id so "me" is not parsed as an id) ----
+// ---- own profile, subjects and availability (declared before /:id so "me" is not parsed as an id) ----
+
+tutorsRouter.get('/me', requireDemoUser, (req, res) => {
+  const [tutor] = profiles('WHERE t.id = :id', { id: myTutorId(req.demoUser!.id) });
+  res.json({ tutor } satisfies GetMyTutorResponse);
+});
+
+// Subjects are always chosen explicitly by the tutor; they are never inferred from enrollments.
+tutorsRouter.put('/me/subjects', requireDemoUser, (req, res) => {
+  const tutorId = myTutorId(req.demoUser!.id);
+  const { courseIds } = bodyObject(req.body);
+  if (!Array.isArray(courseIds) || courseIds.length > 100) throw new HttpError(400, 'courseIds must be an array of at most 100 course ids');
+  const ids = [...new Set(courseIds.map((c) => parseId(c, 'course id')))];
+  const db = getDb();
+  for (const id of ids) if (!db.prepare('SELECT 1 FROM courses WHERE id = ?').get(id)) throw new HttpError(404, `Course ${id} not found`);
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM tutor_courses WHERE tutor_id = ?').run(tutorId);
+    const insert = db.prepare('INSERT INTO tutor_courses (tutor_id, course_id) VALUES (?, ?)');
+    ids.forEach((id) => insert.run(tutorId, id));
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  const [tutor] = profiles('WHERE t.id = :id', { id: tutorId });
+  res.json({ tutor } satisfies SetTutorSubjectsResponse);
+});
 
 tutorsRouter.get('/me/availability', requireDemoUser, (req, res) => {
   const tutorId = myTutorId(req.demoUser!.id);

@@ -280,6 +280,16 @@ export type ListTutorsResponse = { tutors: TutorProfile[] };
 /** GET /api/tutors/:id */
 export type GetTutorResponse = { tutor: TutorProfile };
 
+/** GET /api/tutors/me - the signed-in user's own ACTIVE tutor profile (403 if they have no active tutor badge). */
+export type GetMyTutorResponse = { tutor: TutorProfile };
+
+/**
+ * PUT /api/tutors/me/subjects - replaces the courses the signed-in tutor offers. Subjects are never inferred from
+ * course history; an empty list means "not bookable yet". Unknown or duplicate course ids -> 400/404.
+ */
+export interface SetTutorSubjectsRequest { courseIds: ID[] }
+export type SetTutorSubjectsResponse = { tutor: TutorProfile };
+
 /** GET /api/tutors/me/availability - the signed-in tutor's own slots (403 if the demo user has no tutor profile). */
 export type ListAvailabilityResponse = { slots: AvailabilitySlot[] };
 
@@ -553,5 +563,30 @@ export type GetOneTimeSessionResponse = { session: OneTimeSession };
  * All require a demo user and return the updated session.
  */
 export type OneTimeSessionResponse = { session: OneTimeSession };
+
+// ---------------- Admin moderation (demo accounts with role 'admin' only; 401 without a demo user, 403 otherwise) ----------------
+
+/**
+ * DELETE /api/admin/discussions/:id - soft-deletes any discussion. Replies and votes are kept but no longer served;
+ * the post disappears from feeds and GET /api/discussions/:id answers 410 afterwards. Deleting twice -> 410.
+ */
+export type AdminDeleteDiscussionResponse = { deleted: true; id: ID };
+
+/** Work left behind by a tutor. Nothing is cancelled automatically: a human follows up. */
+export interface TutorBadgeImpact {
+  openRequests: { id: ID; courseCode: string; status: TutoringRequestStatus; studentName: string }[];
+  upcomingSessions: { id: ID; courseCode: string; startsAt: ISODateString; studentName: string }[];
+}
+
+/** GET /api/admin/users/:id/tutor-impact - what revoking this user's tutor badge would leave behind (for the confirm dialog). */
+export type GetTutorImpactResponse = { user: User; impact: TutorBadgeImpact };
+
+/**
+ * PUT /api/admin/users/:id/tutor-badge. isTutor=true grants (re-activates an old badge with its subjects/availability);
+ * false revokes (tutoring history is kept; the account stops being listed or bookable). Idempotent. Admin accounts are
+ * rejected (400): this never changes anyone's `role`. The response carries the outstanding impact after the change.
+ */
+export interface SetTutorBadgeRequest { isTutor: boolean }
+export type SetTutorBadgeResponse = { user: User; impact: TutorBadgeImpact };
 
 // Planned endpoints (not implemented yet) will reuse the entity types above.
