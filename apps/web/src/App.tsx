@@ -1,4 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
+import AvailabilityPage from './pages/AvailabilityPage';
+import StudyGroupPage from './pages/StudyGroupPage';
+import { TutoringSessionPage } from './pages/TutoringActivity';
 import Layout from './components/Layout';
 import { CommunityProvider } from './demo/community';
 import { CoursePage, CoursePeople, CoursesPage } from './pages/CoursesPage';
@@ -27,8 +30,11 @@ export default function App() {
         <Route path="discussions/:discussionId" element={<DiscussionPage />} />
         <Route path="resources" element={<ResourcesPage />} />
         <Route path="tutoring" element={<TutoringPage />} />
+        <Route path="tutoring/availability" element={<AvailabilityPage />} />
+        <Route path="tutoring/sessions/:sessionId" element={<TutoringSessionPage />} />
         <Route path="tutoring/:tutorId" element={<TutorPage />} />
         <Route path="groups" element={<GroupsPage />} />
+        <Route path="groups/:groupId" element={<StudyGroupPage />} />
         <Route path="people" element={<PeoplePage />} />
         <Route path="people/:userId" element={<ProfilePage />} />
         <Route path="*" element={<NotFoundPage />} />

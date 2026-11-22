@@ -1,87 +1,130 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import type { Tutor } from '@tunion/shared';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { LOCATION_TYPE_LABELS, type CreateTutoringRequestRequest, type CreateTutoringRequestResponse, type GetTutorResponse, type ListTutorsResponse, type TutorProfile } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import { CourseSelect, Empty, Field, PageHeading, RequireAccount, field, textLink } from '../components/CommunityUI';
-import { nextId, useCommunity } from '../demo/community';
-import { tutors } from '../demo/data';
+import { useCommunity } from '../demo/community';
+import { api, postJson } from '../lib/api';
 import { useDemoAuth } from '../lib/demoAuth';
+import { weekdays } from '../lib/schedule';
+import { errorMessage, useApiQuery } from '../lib/useApiQuery';
+import { TutoringActivity } from './TutoringActivity';
+
+function fetchTutors(course: string, signal: AbortSignal) {
+  const query = course ? '?' + new URLSearchParams({ courseId: course }) : '';
+  return api<ListTutorsResponse>('/tutors' + query, { signal });
+}
+
+function fetchTutor(id: string, signal: AbortSignal) {
+  return api<GetTutorResponse>('/tutors/' + encodeURIComponent(id), { signal });
+}
 
 export function TutoringPage() {
-  const { current, accounts } = useDemoAuth();
-  const { data } = useCommunity();
+  const { current } = useDemoAuth();
   const [course, setCourse] = useState('');
-  const available = tutors.filter((tutor) => !course || tutor.courseIds.includes(Number(course)));
-  const requests = data.requests.filter((request) => current && (request.studentId === current.id || tutors.some((tutor) => tutor.id === request.tutorId && tutor.userId === current.id)));
+  const query = useApiQuery(course, fetchTutors);
+  const available = query.data?.tutors ?? [];
 
   return <>
-    <PageHeading title="Tutoring" description="Find a peer tutor by course and ask for help with a specific topic." />
+    <PageHeading title="Tutoring" description="Find a peer tutor by course, check their weekly hours, and request a session.">
+      {current?.role === 'tutor' && <Link to="/tutoring/availability" className={textLink}>Manage my availability →</Link>}
+    </PageHeading>
     <div className="max-w-md"><Field label="Course"><CourseSelect all value={course} onChange={setCourse} /></Field></div>
-    {available.length ? <div className="grid gap-4 sm:grid-cols-2">{available.map((tutor) => {
-      const user = accounts.find((account) => account.id === tutor.userId);
-      return <Card key={tutor.id} className="space-y-3">
-        <h2 className="text-lg font-bold">{user?.name ?? 'Peer tutor'}</h2>
+    {query.loading || query.error ? <Empty>{query.error ?? 'Loading tutors…'}</Empty> : available.length
+      ? <div className="grid gap-4 sm:grid-cols-2">{available.map((tutor) => <Card key={tutor.id} className="space-y-3">
+        <h2 className="text-lg font-bold">{tutor.user.name}</h2>
         <p className="text-sm text-ink-700">{tutor.headline}</p>
-        <p className="text-sm text-ink-500">{tutor.availability}</p>
+        <p className="text-sm text-ink-500">{tutor.slots.length ? tutor.slots.length + ' weekly slots (JST)' : 'No weekly slots listed'}</p>
         <TutorCourses tutor={tutor} />
-        <Link to={'/tutoring/' + tutor.id} className={textLink}>View tutor profile →</Link>
-      </Card>;
-    })}</div> : <Empty>No tutors match this course.</Empty>}
-    {current && <section className="space-y-3">
-      <h2 className="text-xl font-bold">My help requests</h2>
-      {requests.length ? requests.map((request) => <Card key={request.id} className="space-y-2"><Badge>{request.status}</Badge><h3 className="font-semibold">{request.topic}</h3><p className="whitespace-pre-wrap break-words text-sm text-ink-700">{request.details}</p><p className="text-xs text-ink-500">{request.studentId === current.id ? 'Requested from ' + (accounts.find((account) => account.id === tutors.find((tutor) => tutor.id === request.tutorId)?.userId)?.name ?? 'peer tutor') : 'Requested by ' + (accounts.find((account) => account.id === request.studentId)?.name ?? 'student')}</p></Card>) : <Empty>No help requests yet.</Empty>}
-    </section>}
+        <Link to={'/tutoring/' + tutor.id + (course ? '?course=' + course : '')} className={textLink}>View tutor profile →</Link>
+      </Card>)}</div>
+      : <Empty>No tutors match this course.</Empty>}
+    {current && <TutoringActivity key={current.id} userId={current.id} />}
   </>;
 }
 
-function TutorCourses({ tutor }: { tutor: Tutor }) {
+function TutorCourses({ tutor }: { tutor: TutorProfile }) {
   const { courses } = useCommunity();
   return <div className="flex flex-wrap gap-2">{courses.filter((course) => tutor.courseIds.includes(course.id)).map((course) => <Link to={'/courses/' + course.id} key={course.id} aria-label={course.title}><Badge tone="brand">{course.code}</Badge></Link>)}</div>;
 }
 
+function slotLabel(slot: TutorProfile['slots'][number]) {
+  return weekdays[slot.dayOfWeek] + ' · ' + slot.startTime + '–' + slot.endTime + ' JST · ' + LOCATION_TYPE_LABELS[slot.locationType];
+}
+
 export function TutorPage() {
-  const { tutorId } = useParams();
+  const { tutorId = '' } = useParams();
   const { accounts, current } = useDemoAuth();
-  const { courses, update } = useCommunity();
-  const [submitted, setSubmitted] = useState(false);
-  const tutor = tutors.find((entry) => String(entry.id) === tutorId);
-  if (!tutor) return <Empty>Tutor not found.</Empty>;
+  const query = useApiQuery(tutorId, fetchTutor);
+  const tutor = query.data?.tutor;
+  if (!tutor) return <Empty>{query.error ?? 'Loading tutor…'}</Empty>;
   const user = accounts.find((account) => account.id === tutor.userId);
-
-  function submit(event: FormEvent<HTMLFormElement>, selectedTutor: Tutor) {
-    event.preventDefault();
-    if (!current) return;
-    const form = new FormData(event.currentTarget);
-    const topic = String(form.get('topic')).trim();
-    const details = String(form.get('details')).trim();
-    if (!topic || !details) return;
-    update((previous) => ({ ...previous, requests: [{
-      id: nextId(previous.requests), courseId: Number(form.get('courseId')), studentId: current.id, tutorId: selectedTutor.id,
-      topic, details, status: 'open', createdAt: new Date().toISOString(),
-    }, ...previous.requests] }));
-    event.currentTarget.reset();
-    setSubmitted(true);
-  }
-
+  const ownProfile = current?.id === tutor.userId;
   return <>
     <Link to="/tutoring" className={textLink}>← Tutor directory</Link>
-    <PageHeading title={user?.name ?? 'Peer tutor'} description={tutor.headline} />
+    <PageHeading title={tutor.user.name} description={tutor.headline}>
+      {ownProfile && <Link to="/tutoring/availability" className={textLink}>Manage my availability →</Link>}
+    </PageHeading>
     <Card className="space-y-3">
-      <p className="text-ink-700">{user?.bio}</p>
-      <p className="text-sm"><strong>Availability</strong> · {tutor.availability}</p>
+      {user?.bio && <p className="text-ink-700">{user.bio}</p>}
       <TutorCourses tutor={tutor} />
-      {user && <Link className={textLink} to={'/people/' + user.id}>View community profile</Link>}
+      <Link className={textLink} to={'/people/' + tutor.userId}>View community profile</Link>
     </Card>
-    <section className="space-y-3"><h2 className="text-xl font-bold">Request help</h2>
-      <RequireAccount><Card className="max-w-2xl"><form onSubmit={(event) => submit(event, tutor)} className="space-y-4">
-        <Field label="Course"><select name="courseId" className={field} required><option value="">Choose a course</option>{courses.filter((course) => tutor.courseIds.includes(course.id)).map((course) => <option value={course.id} key={course.id}>{course.code} · {course.title}</option>)}</select></Field>
-        <Field label="Topic"><input name="topic" className={field} required pattern=".*\S.*" maxLength={140} /></Field>
-        <Field label="What are you working on?"><textarea name="details" className={field} required rows={4} onChange={(event) => event.target.setCustomValidity(event.target.value.trim() ? '' : 'Describe what you are working on.')} /></Field>
-        <Button type="submit">Send help request</Button>
-        {submitted && <p role="status" className="text-sm text-brand-700">Help request saved. <Link className={textLink} to="/tutoring">View my requests</Link></p>}
-      </form></Card></RequireAccount>
-    </section>
+    <Card className="space-y-3">
+      <h2 className="text-xl font-bold">Weekly availability</h2>
+      {tutor.slots.length ? <ul className="divide-y divide-line">{tutor.slots.map((slot) => <li key={slot.id} className="py-2 text-sm">{slotLabel(slot)}</li>)}</ul> : <p className="text-sm text-ink-500">No weekly slots listed.</p>}
+    </Card>
+    {!ownProfile && <section className="space-y-3"><h2 className="text-xl font-bold">Request help</h2>
+      <RequireAccount><RequestForm key={tutor.id + ':' + current?.id} tutor={tutor} /></RequireAccount>
+    </section>}
   </>;
+}
+
+function RequestForm({ tutor }: { tutor: TutorProfile }) {
+  const { courses } = useCommunity();
+  const [submitted, setSubmitted] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  const [params] = useSearchParams();
+  const preferredCourse = params.get('course') ?? '';
+  const preselected = tutor.courseIds.includes(Number(preferredCourse)) ? preferredCourse : '';
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const element = event.currentTarget;
+    const form = new FormData(element);
+    const request: CreateTutoringRequestRequest = {
+      courseId: Number(form.get('courseId')),
+      tutorId: tutor.id,
+      topic: String(form.get('topic')).trim(),
+      details: String(form.get('details')).trim(),
+      slotId: Number(form.get('slotId')) || null,
+    };
+    setPending(true);
+    setSubmitted(false);
+    setError('');
+    try {
+      await postJson<CreateTutoringRequestResponse>('/tutoring-requests', request);
+      element.reset();
+      setSubmitted(true);
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return <Card className="max-w-2xl"><form onSubmit={submit}><fieldset className="min-w-0 space-y-4" disabled={pending}>
+    <Field label="Course"><select key={courses.length} name="courseId" className={field} defaultValue={preselected} required>
+      <option value="">Choose a course</option>{courses.filter((course) => tutor.courseIds.includes(course.id)).map((course) => <option value={course.id} key={course.id}>{course.code} · {course.title}</option>)}
+    </select></Field>
+    {tutor.slots.length > 0 && <Field label="Preferred weekly slot"><select name="slotId" className={field}><option value="">No preference</option>{tutor.slots.map((slot) => <option key={slot.id} value={slot.id}>{slotLabel(slot)}</option>)}</select></Field>}
+    <Field label="Topic"><input name="topic" className={field} required minLength={3} maxLength={200} /></Field>
+    <Field label="What are you working on?"><textarea name="details" className={field} maxLength={5000} rows={4} /></Field>
+    <Button type="submit">{pending ? 'Sending…' : 'Send help request'}</Button>
+    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {submitted && <p role="status" className="text-sm text-brand-700">Help request sent. <Link className={textLink} to="/tutoring#requests">View my requests</Link></p>}
+  </fieldset></form></Card>;
 }

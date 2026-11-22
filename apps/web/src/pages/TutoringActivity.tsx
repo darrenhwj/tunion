@@ -1,0 +1,168 @@
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
+import type { ApproveTutoringRequestRequest, ConfirmTutoringRequestResponse, ListTutoringRequestsResponse, ListTutoringSessionsResponse, LocationType, RejectTutoringRequestRequest, TutoringRequestDetail, TutoringRequestResponse, TutoringSessionResponse } from '@tunion/shared';
+import Badge from '../components/Badge';
+import Button from '../components/Button';
+import Card from '../components/Card';
+import { Empty, Field, PageHeading, field, textLink } from '../components/CommunityUI';
+import { LocationField, MeetingTimes } from '../components/ScheduleFields';
+import { api, postJson } from '../lib/api';
+import { useDemoAuth } from '../lib/demoAuth';
+import { dateTimeJst, locationLabel, timeLabel } from '../lib/schedule';
+import { errorMessage, useApiQuery } from '../lib/useApiQuery';
+
+const requestsPath = '/tutoring-requests';
+const sessionsPath = '/tutoring-sessions';
+function fetchRequests(_key: string, signal: AbortSignal) {
+  return api<ListTutoringRequestsResponse>(requestsPath, { signal });
+}
+function fetchSessions(_key: string, signal: AbortSignal) {
+  return api<ListTutoringSessionsResponse>(sessionsPath, { signal });
+}
+function fetchSession(id: string, signal: AbortSignal) {
+  return api<TutoringSessionResponse>(sessionsPath + '/' + encodeURIComponent(id), { signal });
+}
+
+export function TutoringActivity({ userId }: { userId: number }) {
+  const requests = useApiQuery('', fetchRequests);
+  const sessions = useApiQuery('', fetchSessions);
+  const { hash } = useLocation();
+  const requestsLoaded = !requests.loading;
+  useEffect(() => {
+    if (hash === '#requests' && requestsLoaded) document.getElementById('requests')?.scrollIntoView();
+  }, [hash, requestsLoaded]);
+
+  function refresh() {
+    requests.refresh();
+    sessions.refresh();
+  }
+  return <>
+    <section id="requests" className="space-y-3">
+      <h2 className="text-xl font-bold">My help requests</h2>
+      {requests.loading || requests.error ? <Empty>{requests.error ?? 'Loading requests…'}</Empty> : requests.data?.requests.length
+        ? requests.data.requests.map((request) => <RequestCard key={request.id} request={request} userId={userId} refresh={refresh} refreshing={requests.refreshing} />)
+        : <Empty>No help requests yet.</Empty>}
+    </section>
+    <section className="space-y-3">
+      <h2 className="text-xl font-bold">My tutoring sessions</h2>
+      {sessions.loading || sessions.error ? <Empty>{sessions.error ?? 'Loading sessions…'}</Empty> : sessions.data?.sessions.length
+        ? sessions.data.sessions.map((session) => <Card key={session.id} className="space-y-2">
+          <Badge>{session.status}</Badge>
+          <p><Link className={textLink} to={'/tutoring/sessions/' + session.id}>{session.courseCode} · {session.courseTitle}</Link></p>
+          <p className="text-sm text-ink-700">{timeLabel(session)} · {locationLabel(session)}</p>
+        </Card>) : <Empty>No tutoring sessions yet.</Empty>}
+    </section>
+  </>;
+}
+
+function RequestCard({ request, userId, refresh, refreshing }: { request: TutoringRequestDetail; userId: number; refresh: () => void; refreshing: boolean }) {
+  const [editing, setEditing] = useState<'approve' | 'reject' | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const pending = refreshing || saving;
+  const sent = request.studentId === userId;
+  const path = requestsPath + '/' + request.id;
+
+  async function mutate(change: () => Promise<unknown>) {
+    setSaving(true);
+    setError('');
+    try {
+      await change();
+      setEditing(null);
+      refresh();
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const values = new FormData(event.currentTarget);
+    const read = (key: string) => String(values.get(key) ?? '').trim();
+    if (editing === 'reject') {
+      const payload: RejectTutoringRequestRequest = { note: read('note') };
+      void mutate(() => postJson<TutoringRequestResponse>(path + '/reject', payload));
+      return;
+    }
+    const payload: ApproveTutoringRequestRequest = {
+      startsAt: dateTimeJst(read('startsAt')), endsAt: dateTimeJst(read('endsAt')),
+      locationType: read('locationType') as LocationType, locationDetails: read('locationDetails'), note: read('note'),
+    };
+    void mutate(() => postJson<TutoringRequestResponse>(path + '/approve', payload));
+  }
+
+  return <Card className="space-y-3">
+    <div className="flex flex-wrap gap-2"><Badge tone="brand">{request.courseCode}</Badge><Badge>{request.status === 'accepted' ? 'Awaiting student confirmation' : request.status}</Badge></div>
+    <h3 className="break-words font-bold">{request.topic}</h3>
+    <p className="text-sm text-ink-500">{sent ? 'To ' + (request.tutor?.name ?? 'peer tutor') : 'From ' + request.student.name}{request.slotId !== null && ' · Weekly slot requested'}</p>
+    {request.details && <p className="whitespace-pre-wrap break-words text-sm">{request.details}</p>}
+    {request.proposal && <div className="rounded-lg bg-canvas p-3 text-sm"><p className="font-semibold">{timeLabel(request.proposal)}</p><p className="break-words">{locationLabel(request.proposal)}</p></div>}
+    {request.tutorNote && <p className="whitespace-pre-wrap break-words text-sm text-ink-700">{request.tutorNote}</p>}
+    {request.sessionId && <Link className={textLink} to={'/tutoring/sessions/' + request.sessionId}>View session →</Link>}
+    {!sent && request.status === 'open' && !editing && <div className="flex flex-wrap gap-2">
+      <Button disabled={pending} onClick={() => setEditing('approve')}>Propose a meeting</Button>
+      <Button disabled={pending} variant="secondary" onClick={() => setEditing('reject')}>Decline</Button>
+    </div>}
+    {!sent && request.status === 'open' && editing && <form onSubmit={submit}><fieldset className="min-w-0 space-y-3" disabled={pending}>
+      {editing === 'approve' && <><MeetingTimes /><LocationField /><Field label="Location details"><input name="locationDetails" maxLength={300} className={field} /></Field></>}
+      <Field label="Note to student"><textarea name="note" maxLength={1000} className={field} rows={2} /></Field>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit">{editing === 'approve' ? 'Send proposal' : 'Decline request'}</Button>
+        <Button type="button" variant="secondary" onClick={() => { setEditing(null); setError(''); }}>Back</Button>
+      </div>
+    </fieldset></form>}
+    {sent && (request.status === 'open' || request.status === 'accepted') && <div className="flex flex-wrap gap-2">
+      {request.status === 'accepted' && <Button disabled={pending} onClick={() => void mutate(() => api<ConfirmTutoringRequestResponse>(path + '/confirm', { method: 'POST' }))}>Confirm session</Button>}
+      <Button disabled={pending} variant="secondary" onClick={() => void mutate(() => api<TutoringRequestResponse>(path + '/cancel', { method: 'POST' }))}>Withdraw request</Button>
+    </div>}
+    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+  </Card>;
+}
+
+export function TutoringSessionPage() {
+  const { current } = useDemoAuth();
+  const { sessionId = '' } = useParams();
+  return <>
+    <Link to="/tutoring" className={textLink}>← Tutoring</Link>
+    {current ? <SessionDetails key={current.id + ':' + sessionId} id={sessionId} userId={current.id} /> : <Empty>Select a demo account to view this session.</Empty>}
+  </>;
+}
+
+function SessionDetails({ id, userId }: { id: string; userId: number }) {
+  const query = useApiQuery(id, fetchSession);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const session = query.data?.session;
+  if (!session) return <Empty>{query.error ?? 'Loading session…'}</Empty>;
+  const pending = saving || query.refreshing;
+
+  async function change(action: 'cancel' | 'complete') {
+    setSaving(true);
+    setError('');
+    try {
+      await api<TutoringSessionResponse>(sessionsPath + '/' + id + '/' + action, { method: 'POST' });
+      query.refresh();
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <>
+    <PageHeading title={session.courseCode + ' tutoring session'} description={session.courseTitle}><Badge>{session.status}</Badge></PageHeading>
+    <Card className="space-y-3">
+      <p className="font-semibold">{timeLabel(session)}</p>
+      <p className="break-words">{locationLabel(session)}</p>
+      <p className="text-sm text-ink-500">Tutor · {session.tutor.name}</p>
+      <p className="text-sm text-ink-500">Student · {session.student.name}</p>
+      {session.status === 'scheduled' && <div className="flex flex-wrap gap-2">
+        {session.tutor.id === userId && Date.parse(session.startsAt) <= Date.now() && <Button disabled={pending} onClick={() => void change('complete')}>Mark complete</Button>}
+        <Button variant="secondary" disabled={pending} onClick={() => { if (window.confirm('Cancel this tutoring session?')) void change('cancel'); }}>Cancel session</Button>
+      </div>}
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    </Card>
+  </>;
+}
