@@ -415,6 +415,128 @@ export type TutoringCalendarResponse = { range: CalendarRange; sessions: Tutorin
  * mine (default): scheduled sessions of groups the user belongs to.
  * discover: scheduled sessions of groups the user has NOT joined, for courses they are enrolled in, with space left.
  */
-export type StudyGroupCalendarResponse = { range: CalendarRange; sessions: StudyGroupSession[] };
+export type StudyGroupCalendarResponse = {
+  range: CalendarRange;
+  sessions: StudyGroupSession[];
+  /** One-time sessions in the same window: joined/created ones for scope=mine, open ones to join for scope=discover. */
+  oneTimeSessions: OneTimeSession[];
+};
+
+// ---------------- Resources, upvotes & previews ----------------
+
+export const RESOURCE_UPLOAD_LIMITS = {
+  maxBytes: 10 * 1024 * 1024,
+  /** Lower-case extensions accepted for upload. The server also checks the file's real content. */
+  extensions: ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt', 'md'],
+  /** Extensions the browser can render inline via the preview endpoint (PDFs, images, plain text). */
+  previewableExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt'],
+} as const;
+
+export interface ResourceFile {
+  filename: string; // original name, for display and download
+  mimeType: string; // server-determined, never client-supplied
+  sizeBytes: number;
+  previewable: boolean;
+}
+
+/** A resource with display data. Exactly one of `url` (external link) or `file` (upload) is set. */
+export interface ResourceSummary extends Resource {
+  courseCode: string;
+  author: AuthorSummary;
+  file: ResourceFile | null;
+  /** API paths (include the demo-user header when fetching). Null for link resources. */
+  downloadUrl: string | null;
+  previewUrl: string | null; // null when the file type is not previewable
+  upvoteCount: number;
+  hasUpvoted: boolean;
+}
+
+/**
+ * GET /api/resources
+ * Query: courseId?, q? (title/description), type?, sort? ('recent'|'top'), limit? (1-100, default 50), offset?
+ * hasUpvoted reflects the demo user in DEMO_USER_HEADER (false if none).
+ */
+export type ListResourcesResponse = { resources: ResourceSummary[] };
+/** GET /api/resources/:id */
+export type GetResourceResponse = { resource: ResourceSummary };
+
+/**
+ * POST /api/resources (requires demo user). Send either:
+ *  - application/json with `url` (http/https link), or
+ *  - multipart/form-data with the same fields as text parts plus a single `file` part (see RESOURCE_UPLOAD_LIMITS).
+ * Provide exactly one of url / file. title 3-200 chars, description <= 2000 chars.
+ */
+export interface CreateResourceRequest {
+  courseId: ID;
+  title: string;
+  description?: string;
+  type: ResourceType;
+  url?: string;
+}
+export type CreateResourceResponse = { resource: ResourceSummary };
+
+/**
+ * POST (add) / DELETE (remove) /api/resources/:id/upvote - requires demo user.
+ * Responds with the existing VoteResponse. A second POST by the same user is 409; own resources cannot be upvoted (403).
+ *
+ * GET /api/resources/:id/download - attachment (Content-Disposition: attachment). Requires demo user.
+ * GET /api/resources/:id/preview  - the same bytes served inline with the real Content-Type, for PDFs, images and
+ *   plain text only (415 otherwise). Requires demo user. Browsers cannot attach the demo header to <img>/<iframe> src,
+ *   so fetch() with the header and render the response as a Blob URL. Both return 404 for link resources.
+ */
+
+// ---------------- One-time study sessions ----------------
+
+export type OneTimeSessionStatus = 'scheduled' | 'cancelled';
+
+/** A standalone, non-recurring study session. It never repeats and is not tied to a StudyGroup. */
+export interface OneTimeSession extends TimeRange {
+  id: ID;
+  courseId: ID;
+  courseCode: string;
+  courseTitle: string;
+  title: string;
+  description: string;
+  location: string;
+  creator: AuthorSummary;
+  maxParticipants: number;
+  participantCount: number;
+  participants: AuthorSummary[]; // includes the creator
+  isCreator: boolean;
+  /** Whether the signed-in user has joined (the creator always has). False when nobody is signed in. */
+  isParticipant: boolean;
+  status: OneTimeSessionStatus;
+  createdAt: ISODateString;
+}
+
+/** POST /api/one-time-sessions (requires demo user). The creator joins automatically. Must start in the future, max 12h long. */
+export interface CreateOneTimeSessionRequest {
+  courseId: ID;
+  title: string; // 3-200 chars
+  description?: string; // <= 2000 chars
+  startsAt: ISODateString; // needs a UTC offset
+  endsAt: ISODateString;
+  location: string; // 1-300 chars
+  maxParticipants?: number; // 2-50, default 10
+}
+export type CreateOneTimeSessionResponse = { session: OneTimeSession };
+
+/**
+ * GET /api/one-time-sessions
+ * Query: courseId?, from?/to? (same format as the calendar; default from = now, no upper bound),
+ *   joined? ('true' = only sessions the demo user created/joined), open? ('true' = only sessions with room that the
+ *   user has not joined), status? ('scheduled' default | 'cancelled'), limit? (1-100, default 50).
+ * Earliest first.
+ */
+export type ListOneTimeSessionsResponse = { sessions: OneTimeSession[] };
+/** GET /api/one-time-sessions/:id */
+export type GetOneTimeSessionResponse = { session: OneTimeSession };
+/**
+ * POST /api/one-time-sessions/:id/join   - 409 if already joined, full, cancelled or already started.
+ * DELETE /api/one-time-sessions/:id/join - leave (the creator cannot leave; cancel instead).
+ * POST /api/one-time-sessions/:id/cancel - creator only; scheduled -> cancelled.
+ * All require a demo user and return the updated session.
+ */
+export type OneTimeSessionResponse = { session: OneTimeSession };
 
 // Planned endpoints (not implemented yet) will reuse the entity types above.

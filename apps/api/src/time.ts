@@ -37,7 +37,8 @@ export function parseFutureMeeting(startsRaw: unknown, endsRaw: unknown, maxHour
   return { startsAt, endsAt };
 }
 
-function parseBound(value: string, label: string): ISODateString {
+/** An ISO instant with offset, or YYYY-MM-DD meaning JST midnight. */
+export function parseBound(value: string, label: string): ISODateString {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const ms = Date.parse(`${value}T00:00:00Z`);
     if (Number.isNaN(ms)) throw new HttpError(400, `Invalid ${label}`);

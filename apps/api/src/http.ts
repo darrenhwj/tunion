@@ -51,6 +51,12 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     res.status(413).json({ error: 'Request body too large' } satisfies ApiError);
     return;
   }
+  if (e && (e as { name?: string }).name === 'MulterError') {
+    const code = (e as { code?: string }).code;
+    const tooBig = code === 'LIMIT_FILE_SIZE';
+    res.status(tooBig ? 413 : 400).json({ error: tooBig ? 'File is too large (max 10 MB)' : 'Invalid upload: send one file in a "file" field' } satisfies ApiError);
+    return;
+  }
   console.error(err);
   res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
 }

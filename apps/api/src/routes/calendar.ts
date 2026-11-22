@@ -5,7 +5,8 @@ import { toStudyGroupSession, toTutoringSession } from '../mappers';
 import { HttpError, queryString, requireDemoUser } from '../http';
 import { SESSION_SELECT } from '../tutoring';
 import { GROUP_SESSION_SELECT } from '../studyGroupSessions';
-import { parseCalendarRange } from '../time';
+import { ONE_TIME_SELECT, hydrateOneTimeSessions } from '../oneTimeSessions';
+import { nowIso, parseCalendarRange } from '../time';
 
 export const calendarRouter = Router();
 calendarRouter.use(requireDemoUser);
@@ -48,5 +49,22 @@ calendarRouter.get('/study-groups', (req, res) => {
        ORDER BY gs.starts_at, gs.id`,
     )
     .all({ viewer: req.demoUser!.id, from: range.from, to: range.to });
-  res.json({ range, sessions: rows.map(toStudyGroupSession) } satisfies StudyGroupCalendarResponse);
+
+  // One-time sessions: joined (incl. created) for 'mine'; open ones in the user's courses for 'discover'. They never recur.
+  const joined = 'EXISTS (SELECT 1 FROM one_time_session_participants p WHERE p.session_id = o.id AND p.user_id = :viewer)';
+  const oneTimeFilter =
+    scope === 'mine'
+      ? `AND ${joined}`
+      : `AND NOT ${joined} AND o.starts_at > :now AND o.course_id IN (SELECT course_id FROM enrollments WHERE user_id = :viewer)
+         AND (SELECT COUNT(*) FROM one_time_session_participants p WHERE p.session_id = o.id) < o.max_participants`;
+  const oneTimeParams: Record<string, string | number> = { viewer: req.demoUser!.id, from: range.from, to: range.to };
+  if (scope === 'discover') oneTimeParams.now = nowIso();
+  const oneTimeRows = getDb()
+    .prepare(`${ONE_TIME_SELECT} WHERE o.status = 'scheduled' AND o.starts_at < :to AND o.ends_at > :from ${oneTimeFilter} ORDER BY o.starts_at, o.id`)
+    .all(oneTimeParams);
+  res.json({
+    range,
+    sessions: rows.map(toStudyGroupSession),
+    oneTimeSessions: hydrateOneTimeSessions(oneTimeRows, req.demoUser!.id),
+  } satisfies StudyGroupCalendarResponse);
 });

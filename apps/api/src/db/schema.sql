@@ -69,7 +69,20 @@ CREATE TABLE IF NOT EXISTS resources (
   description TEXT NOT NULL DEFAULT '',
   type TEXT NOT NULL CHECK (type IN ('notes','link','cheatsheet','practice','other')),
   url TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Uploaded file metadata (all NULL for link resources). stored_name is a server-generated name inside the uploads dir.
+  stored_name TEXT,
+  original_filename TEXT,
+  mime_type TEXT,
+  size_bytes INTEGER
+);
+
+-- One upvote per (resource, user): the composite primary key prevents duplicates at the database level.
+CREATE TABLE IF NOT EXISTS resource_votes (
+  resource_id INTEGER NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (resource_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS tutors (
@@ -162,6 +175,28 @@ CREATE TABLE IF NOT EXISTS study_group_sessions (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- Standalone, non-recurring study sessions (independent of study_groups). Instants are UTC ISO-8601 with 'Z'.
+CREATE TABLE IF NOT EXISTS one_time_sessions (
+  id INTEGER PRIMARY KEY,
+  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  creator_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  starts_at TEXT NOT NULL,
+  ends_at TEXT NOT NULL CHECK (ends_at > starts_at),
+  location TEXT NOT NULL,
+  max_participants INTEGER NOT NULL DEFAULT 10 CHECK (max_participants BETWEEN 2 AND 50),
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','cancelled')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS one_time_session_participants (
+  session_id INTEGER NOT NULL REFERENCES one_time_sessions(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (session_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS help_requests (
   id INTEGER PRIMARY KEY,
   course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -182,3 +217,5 @@ CREATE INDEX IF NOT EXISTS idx_slots_tutor ON tutor_availability_slots(tutor_id,
 CREATE INDEX IF NOT EXISTS idx_tutoring_sessions_student ON tutoring_sessions(student_id, starts_at);
 CREATE INDEX IF NOT EXISTS idx_tutoring_sessions_tutor ON tutoring_sessions(tutor_id, starts_at);
 CREATE INDEX IF NOT EXISTS idx_study_group_sessions_group ON study_group_sessions(group_id, starts_at);
+CREATE INDEX IF NOT EXISTS idx_one_time_sessions_start ON one_time_sessions(starts_at);
+CREATE INDEX IF NOT EXISTS idx_one_time_participants_user ON one_time_session_participants(user_id);
