@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AccountBadges from './AccountBadges';
 import Badge from './Badge';
 import Button from './Button';
@@ -6,6 +7,7 @@ import { useDemoAuth } from '../lib/demoAuth';
 
 export default function DemoAccountSwitcher() {
   const { accounts, current, loading, error, switchTo, selectorOpen, openSelector, closeSelector } = useDemoAuth();
+  const navigate = useNavigate();
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export default function DemoAccountSwitcher() {
       {loading && <p role="status">Loading accounts…</p>}
       {error && <p role="alert">{error}</p>}
       <div className="grid gap-2">{accounts.map((account) => (
-        <Button key={account.id} variant="secondary" className="flex-wrap justify-between gap-2" onClick={() => { switchTo(account.id); closeSelector(); }}>
+        <Button key={account.id} variant="secondary" className="flex-wrap justify-between gap-2" onClick={() => { switchTo(account.id); closeSelector(); void navigate('/'); }}>
           <span>{account.name}</span><AccountBadges role={account.role} tutor={account.isTutor} />
         </Button>
       ))}</div>
