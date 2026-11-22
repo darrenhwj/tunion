@@ -11,15 +11,24 @@ import { api } from '../lib/api';
 import { useApiQuery } from '../lib/useApiQuery';
 import { useDemoAuth } from '../lib/demoAuth';
 
+const courseLevels = [1000, 2000, 3000, 4000];
+
+function getCourseLevel(code: string) {
+  const courseNumber = code.match(/(?<!\d)\d{4}(?!\d)/)?.[0];
+  const level = Math.floor(Number(courseNumber) / 1000) * 1000;
+  return courseLevels.includes(level) ? level : undefined;
+}
+
 export function CourseCard({ course }: { course: Course }) {
+  const level = getCourseLevel(course.code);
   return <Link to={'/courses/' + course.id} className="group block h-full">
     <Card className="flex h-full flex-col gap-3 transition group-hover:border-brand-500">
       <div className="flex items-center justify-between gap-2">
         <span className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-700"><Glyph name="courses" /></span>
-        <Badge>{course.level} level</Badge>
+        {level !== undefined && <Badge>{level} level</Badge>}
       </div>
       <p className="text-xs font-bold tracking-wide text-brand-700">{course.code}</p>
-      <h2 className="text-lg font-bold leading-tight">{course.title}</h2>
+      <h3 className="text-lg font-bold leading-tight">{course.title}</h3>
       <p className="flex-1 text-sm leading-6 text-ink-500">{course.description}</p>
       <span className="flex items-center gap-2 text-sm font-semibold text-brand-700">View course <Glyph name="arrow" className="size-4" /></span>
     </Card>
@@ -39,21 +48,38 @@ export function CoursesPage() {
   const [level, setLevel] = useState('');
   const params = new URLSearchParams();
   if (query.trim()) params.set('q', query.trim());
-  if (level) params.set('level', level);
   const { data, loading, error } = useApiQuery(params.toString(), fetchCourses);
-  const visible = data?.courses ?? [];
+  const { myCourses, enrollmentsLoading, enrollmentsError } = useCommunity();
+  const sections = [
+    { id: 'current-courses', title: 'My Courses', empty: 'You have no current courses.', courses: [] as Course[] },
+    { id: 'previous-courses', title: 'Previous Courses', empty: 'You have no previous courses.', courses: [] as Course[] },
+    { id: 'other-courses', title: 'Other Courses', empty: 'There are no other courses.', courses: [] as Course[] },
+  ];
+  const [current, previous, other] = sections;
+  for (const course of data?.courses ?? []) {
+    if (level && getCourseLevel(course.code) !== Number(level)) continue;
+    if (myCourses.current.includes(course.id)) current.courses.push(course);
+    else if (myCourses.completed.includes(course.id)) previous.courses.push(course);
+    else other.courses.push(course);
+  }
+  const filtering = Boolean(query.trim() || level);
 
   return <>
     <PageHeading title="Course directory" description="Find a course to connect with classmates, ask questions, and share study materials." />
     <Card className="grid gap-4 sm:grid-cols-[1fr_180px]">
       <Field label="Search courses"><input type="search" maxLength={100} value={query} onChange={(event) => setQuery(event.target.value)} className={field} placeholder="Search by code or topic" /></Field>
       <Field label="Course level"><select className={field} value={level} onChange={(event) => setLevel(event.target.value)}>
-        <option value="">All levels</option>{[100, 200, 300, 400].map((value) => <option key={value}>{value}</option>)}
+        <option value="">All levels</option>{courseLevels.map((value) => <option key={value} value={value}>{value} level</option>)}
       </select></Field>
     </Card>
-    {loading || error || !visible.length
-      ? <Empty>{loading ? 'Loading courses…' : error || 'No courses match your search.'}</Empty>
-      : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{visible.map((course) => <CourseCard key={course.id} course={course} />)}</div>}
+    {loading || enrollmentsLoading || error || enrollmentsError
+      ? <Empty>{error || enrollmentsError || 'Loading courses…'}</Empty>
+      : sections.map((section) => <section key={section.id} aria-labelledby={section.id} className="space-y-3">
+        <h2 id={section.id} className="text-xl font-bold tracking-tight">{section.title}</h2>
+        {section.courses.length
+          ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{section.courses.map((course) => <CourseCard key={course.id} course={course} />)}</div>
+          : <Empty>{filtering ? 'No courses match your filters.' : section.empty}</Empty>}
+      </section>)}
   </>;
 }
 
