@@ -47,6 +47,14 @@ describe('csv parsing and normalization', () => {
     const rows = parseCsv('﻿a,b\r\n"x, y","say ""hi"""\r\n"multi\nline",z\r\n');
     assert.deepEqual(rows, [['a', 'b'], ['x, y', 'say "hi"'], ['multi\nline', 'z']]);
   });
+  it('treats the first commas as separators and keeps every later comma inside the last column', async () => {
+    const { parseCsvObjects } = await import('./csv');
+    const r = parseCsvObjects('code,name,description\nCIS 1,Name,One, two, and three.\nCIS 2,"Quoted, name","Quoted, description"\n', ['code', 'name', 'description'], { rejoinLastColumn: true });
+    assert.deepEqual(r.errors, []);
+    assert.equal(r.rows[0].description, 'One, two, and three.');
+    assert.equal(r.rows[1].name, 'Quoted, name');
+    assert.equal(r.warnings.length, 1); // only the unquoted row is flagged
+  });
   it('normalizes course codes and derives levels', () => {
     assert.equal(normalizeCourseCode(' cis1001 '), 'CIS 1001');
     assert.equal(normalizeCourseCode('CIS  2168'), 'CIS 2168');
