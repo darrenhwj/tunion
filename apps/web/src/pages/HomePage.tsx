@@ -27,11 +27,9 @@ function PublicLanding() {
 }
 
 function StudentDashboard({ accountId, canTutor }: { accountId: number; canTutor: boolean }) {
-  const { courses, loading, courseError, myCourses } = useCommunity();
-  const current = myCourses.current;
-  const previous = myCourses.completed;
-  const currentCourses = courses.filter((course) => current.includes(course.id));
-  const pastCourses = courses.filter((course) => previous.includes(course.id) && !current.includes(course.id));
+  const { courses, loading, courseError, myCourses, enrollmentsLoading, enrollmentsError } = useCommunity();
+  const currentCourses = courses.filter((course) => myCourses.current.includes(course.id));
+  const error = courseError || enrollmentsError;
 
   return <>
     <DashboardCalendar accountId={accountId} canTutor={canTutor} />
@@ -40,22 +38,21 @@ function StudentDashboard({ accountId, canTutor }: { accountId: number; canTutor
         <h2 id="my-courses" className="text-xl font-bold tracking-tight">My Courses</h2>
         <Link to="/courses" className="text-sm font-semibold text-brand-700 hover:underline">Browse courses →</Link>
       </div>
-      {loading || courseError ? <Empty>{courseError || 'Loading courses…'}</Empty>
-        : !currentCourses.length && !pastCourses.length ? <Empty>Join a course to see it here.</Empty>
+      {loading || enrollmentsLoading || error ? <Empty>{error || 'Loading courses…'}</Empty>
+        : !currentCourses.length ? <Empty>You have no current courses.</Empty>
         : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {currentCourses.map((course) => <CourseTile key={course.id} course={course} status="Current" />)}
-          {pastCourses.map((course) => <CourseTile key={course.id} course={course} status="Past course" />)}
+          {currentCourses.map((course) => <CourseTile key={course.id} course={course} />)}
         </div>}
     </section>
   </>;
 }
 
-function CourseTile({ course, status }: { course: Course; status: string }) {
+function CourseTile({ course }: { course: Course }) {
   return <Link to={'/courses/' + course.id} className="group min-w-0">
     <Card className="flex h-full min-w-0 items-start gap-3 p-4 group-hover:border-brand-500">
       <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700"><Glyph name="courses" className="size-4" /></span>
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-brand-700">{course.code}</span><Badge>{status}</Badge></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-brand-700">{course.code}</span><Badge>Current</Badge></div>
         <h3 className="mt-1 break-words text-sm font-semibold">{course.title}</h3>
       </div>
     </Card>
