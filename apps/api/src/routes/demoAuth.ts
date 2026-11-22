@@ -9,7 +9,7 @@ import { toUser } from '../mappers';
 export const demoAuthRouter = Router();
 
 demoAuthRouter.get('/demo-auth/accounts', (_req, res) => {
-  const rows = getDb().prepare('SELECT * FROM users WHERE is_hidden = 0 ORDER BY id').all();
+  const rows = getDb().prepare("SELECT * FROM users WHERE is_hidden = 0 OR role = 'admin' ORDER BY id").all();
   res.json({ accounts: rows.map(toUser) } satisfies ListDemoAccountsResponse);
 });
 

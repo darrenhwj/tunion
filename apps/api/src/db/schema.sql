@@ -5,8 +5,9 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   role TEXT NOT NULL CHECK (role IN ('student','tutor','ta','admin')),
-  major TEXT NOT NULL DEFAULT 'Computer Science',
-  year INTEGER NOT NULL DEFAULT 1,
+  -- '' (major) and 0 (year) mean "not specified"; the API reports them as null. Never default to a real value.
+  major TEXT NOT NULL DEFAULT '',
+  year INTEGER NOT NULL DEFAULT 0,
   bio TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   -- 1 hides a legacy/demo account from the demo account selector only; the row and its content are kept.
@@ -96,9 +97,12 @@ CREATE TABLE IF NOT EXISTS tutors (
   user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   headline TEXT NOT NULL DEFAULT '',
   availability TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- 0 = tutor badge revoked. The row is kept (tutoring requests/sessions reference it); the tutor just stops being listed or requestable.
+  is_active INTEGER NOT NULL DEFAULT 1
 );
 
+-- The courses a tutor explicitly offers to tutor. Never derived from completed courses.
 CREATE TABLE IF NOT EXISTS tutor_courses (
   tutor_id INTEGER NOT NULL REFERENCES tutors(id) ON DELETE CASCADE,
   course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,

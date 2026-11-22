@@ -59,7 +59,7 @@ export function ProfilePage() {
 
   return <>
     <Link to="/people" className={textLink}>← Community members</Link>
-    <PageHeading title={person.name} description={person.major + ' · Year ' + person.year}><AccountBadges role={person.role} /></PageHeading>
+    <PageHeading title={person.name} description={[person.major, person.year ? 'Year ' + person.year : null].filter(Boolean).join(' · ') || 'Major and year not specified'}><AccountBadges role={person.role} /></PageHeading>
     <Card className="space-y-3"><p>{person.bio || 'No bio yet.'}</p><h2 className="font-bold">Badges</h2><div className="flex flex-wrap gap-2">{badges.length ? badges.map((badge) => <Badge key={badge} tone="brand">{badge}</Badge>) : <p className="text-sm text-ink-500">No badges earned yet.</p>}</div></Card>
     <section className="space-y-3"><h2 className="text-xl font-bold">Course history</h2>
       {history.length ? <div className="grid gap-3 sm:grid-cols-2">{history.map((course) => <Card key={course.id}><Link className={textLink} to={'/courses/' + course.id}>{course.code} · {course.title}</Link></Card>)}</div> : <Empty>No course activity yet.</Empty>}

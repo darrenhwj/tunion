@@ -36,9 +36,9 @@ export function loadSession(id: number): TutoringSession {
   return toTutoringSession(row);
 }
 
-/** The Tutor.id of a user's tutor profile, if they have one. */
+/** The Tutor.id of a user's ACTIVE tutor profile (a revoked badge means no profile). Historical rows keep their tutor_id. */
 export function tutorIdForUser(userId: number): number | undefined {
-  const row = getDb().prepare('SELECT id FROM tutors WHERE user_id = ?').get(userId) as { id: number } | undefined;
+  const row = getDb().prepare('SELECT id FROM tutors WHERE user_id = ? AND is_active = 1').get(userId) as { id: number } | undefined;
   return row?.id;
 }
 

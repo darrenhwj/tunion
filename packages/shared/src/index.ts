@@ -11,8 +11,8 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  major: string;
-  year: number;
+  major: string | null; // null = not specified
+  year: number | null; // null = not specified
   bio: string;
   createdAt: ISODateString;
 }
