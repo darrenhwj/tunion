@@ -129,11 +129,11 @@ tutoringRequestsRouter.post('/:id/approve', (req, res) => {
   const request = asRole(req, 'tutor');
   requireStatus(request.status, ['open'], 'approve');
   const body = bodyObject(req.body);
-  const meeting = readMeeting(body);
-  const { startsAt, endsAt, locationType, locationDetails } = meeting;
-  requireAvailability(request.tutorId!, meeting);
+  const { startsAt, endsAt, locationType, locationDetails } = readMeeting(body);
   const note = optionalText(body, 'note', 1000);
-  if (hasSessionConflict(req.demoUser!.id, startsAt, endsAt)) throw new HttpError(409, 'You already have a session at that time');
+  if (hasSessionConflict(req.demoUser!.id, startsAt, endsAt) || hasSessionConflict(request.studentId, startsAt, endsAt)) {
+    throw new HttpError(409, 'The tutor or student already has a confirmed session at that time');
+  }
   transition(request.id, 'accepted', {
     proposed_starts_at: startsAt, proposed_ends_at: endsAt, proposed_location_type: locationType,
     proposed_location_details: locationDetails, tutor_note: note,
@@ -160,11 +160,6 @@ tutoringRequestsRouter.post('/:id/confirm', (req, res) => {
   const request = asRole(req, 'student');
   requireStatus(request.status, ['accepted'], 'confirm');
   if (!request.proposal) throw new HttpError(409, 'Request has no proposed meeting to confirm');
-  if (request.requestedMeeting && request.tutorId !== null && !fitsTutorAvailability(
-    request.tutorId, request.proposal.startsAt, request.proposal.endsAt, request.proposal.locationType,
-  )) {
-    throw new HttpError(409, 'The proposed time is no longer available. Withdraw this request and choose a new time.');
-  }
   res.status(201).json(bookSession(request, request.proposal) satisfies ConfirmTutoringRequestResponse);
 });
 

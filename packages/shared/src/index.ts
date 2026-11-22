@@ -343,7 +343,10 @@ export type ListTutoringRequestsResponse = { requests: TutoringRequestDetail[] }
 /** GET /api/tutoring-requests/:id - participants only. */
 export type GetTutoringRequestResponse = { request: TutoringRequestDetail };
 
-/** POST /api/tutoring-requests/:id/approve (the requested tutor; open -> accepted). startsAt/endsAt need a UTC offset. */
+/**
+ * POST /api/tutoring-requests/:id/approve (the requested tutor; open -> accepted).
+ * A one-off proposal can be outside weekly availability. startsAt/endsAt need a UTC offset.
+ */
 export interface ApproveTutoringRequestRequest {
   startsAt: ISODateString;
   endsAt: ISODateString;

@@ -135,7 +135,7 @@ function RequestCard({ request, userId, refresh, refreshing }: { request: Tutori
     {!sent && request.status === 'open' && editing && <form onSubmit={submit}><fieldset className="min-w-0 space-y-3" disabled={pending}>
       {editing === 'accept' && requested && <p className="text-sm">Confirm {timeLabel(requested)} · {locationLabel(requested)}</p>}
       {editing === 'approve' && <>
-        <p className="text-sm">Choose a time and format within your weekly availability. <Link className={textLink} to="/tutoring/availability">View availability</Link></p>
+        <p className="text-sm">Choose any future time in JST. This proposal won’t change your weekly availability.</p>
         <MeetingTimes durationMinutes={duration} /><LocationField value={requested?.locationType} />
         <Field label="Location details"><input name="locationDetails" defaultValue={requested?.locationDetails} maxLength={300} className={field} /></Field>
       </>}
@@ -147,8 +147,8 @@ function RequestCard({ request, userId, refresh, refreshing }: { request: Tutori
       </div>
     </fieldset></form>}
     {sent && (request.status === 'open' || request.status === 'accepted') && <div className="flex flex-wrap gap-2">
-      {request.status === 'accepted' && <Button disabled={pending} onClick={() => void mutate(() => api<ConfirmTutoringRequestResponse>(path + '/confirm', { method: 'POST' }))}>Confirm session</Button>}
-      <Button disabled={pending} variant="secondary" onClick={() => void mutate(() => api<TutoringRequestResponse>(path + '/cancel', { method: 'POST' }))}>Withdraw request</Button>
+      {request.status === 'accepted' && <Button disabled={pending} onClick={() => void mutate(() => api<ConfirmTutoringRequestResponse>(path + '/confirm', { method: 'POST' }))}>Accept proposed time</Button>}
+      <Button disabled={pending} variant="secondary" onClick={() => void mutate(() => api<TutoringRequestResponse>(path + '/cancel', { method: 'POST' }))}>{request.status === 'accepted' ? 'Decline proposed time' : 'Withdraw request'}</Button>
     </div>}
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
   </Card>;

@@ -164,7 +164,12 @@ describe('tutoring requests and sessions', () => {
       const other = await newRequest(2, 1, 3, 'Clashing request');
       const clash = await api.call('POST', `/api/tutoring-requests/${other.id}/approve`, { user: 3, body: proposal('15', '14:30', '15:30') });
       assert.equal(clash.status, 409);
-      // Student-side clash detected at confirmation time: Alex gets two approvals for the same hour from different tutors.
+      const studentClash = await newRequest(1, 2, 10, 'Conflicting student session');
+      const conflictingProposal = await api.call('POST', `/api/tutoring-requests/${studentClash.id}/approve`, {
+        user: 4, body: proposal('15', '14:30', '15:30'),
+      });
+      assert.equal(conflictingProposal.status, 409);
+      // A student-side clash can also arise after both proposals have been made: Alex gets two approvals for the same hour from different tutors.
       const a = await newRequest(1, 1, 5, 'Slot A');
       const b = await newRequest(1, 2, 1, 'Slot B');
       await api.call('POST', `/api/tutoring-requests/${a.id}/approve`, { user: 3, body: proposal('25') });
@@ -220,12 +225,31 @@ describe('tutoring requests and sessions', () => {
       assert.match((await accept()).json.error, /passed/);
       alter.run('2030-01-31T10:00:00.000Z', '2030-01-31T11:00:00.000Z', id);
       assert.match((await accept()).json.error, /outside/);
-      const approve = (meeting: ReturnType<typeof proposal>) => api.call('POST', path + '/' + id + '/approve', { user: 3, body: meeting });
-      assert.equal((await approve(body.meeting)).status, 409);
-      assert.equal((await approve(proposal('31'))).status, 200);
+      const alternative = { ...proposal('29', '19:00', '20:00'), locationType: 'online', locationDetails: 'Remote meeting' };
+      const approve = await api.call('POST', path + '/' + id + '/approve', { user: 3, body: alternative });
+      assert.equal(approve.status, 200);
+      assert.equal(approve.json.request.proposal.startsAtJst, '2030-01-29T19:00:00.000+09:00');
+      assert.equal(approve.json.request.requestedMeeting.startsAtJst, '2030-01-31T19:00:00.000+09:00');
+      const { closeDb } = await import('../db');
+      closeDb();
+      const persisted = await api.call('GET', path + '/' + id, { user: 2 });
+      assert.deepEqual(persisted.json.request.proposal, approve.json.request.proposal);
+
+      const calendarPath = '/api/calendar/tutoring?from=2030-01-29&to=2030-01-30';
+      for (const user of [2, 3]) {
+        const calendar = await api.call('GET', calendarPath, { user });
+        assert.ok(!calendar.json.sessions.some((session: { requestId: number }) => session.requestId === id));
+      }
       const confirmed = await api.call('POST', path + '/' + id + '/confirm', { user: 2 });
       assert.equal(confirmed.status, 201);
-      assert.equal(confirmed.json.session.startsAtJst, '2030-01-31T14:00:00.000+09:00');
+      const { session } = confirmed.json;
+      for (const key of ['startsAt', 'endsAt', 'locationType', 'locationDetails'] as const) {
+        assert.equal(session[key], persisted.json.request.proposal[key]);
+      }
+      for (const user of [2, 3]) {
+        const calendar = await api.call('GET', calendarPath, { user });
+        assert.ok(calendar.json.sessions.some((item: { id: number }) => item.id === session.id));
+      }
     });
   });
 
@@ -276,6 +300,59 @@ describe('tutoring requests and sessions', () => {
       assert.equal((await api.call('GET', '/api/tutoring-sessions?status=bogus', { user: 2 })).status, 400);
       assert.equal((await api.call('GET', '/api/tutoring-sessions/xyz', { user: 2 })).status, 400);
       assert.equal((await api.call('GET', '/api/tutoring-sessions/9999', { user: 2 })).status, 404);
+    });
+  });
+
+  describe('one-off proposals on unavailable days', () => {
+    it('lets the tutor propose on a day without slots and lets the student decline', async () => {
+      await clearPending(1, 2, 8);
+      const path = '/api/tutoring-requests';
+      const body = { courseId: 8, tutorId: 2, topic: 'Off-day alternative' };
+      const { getDb } = await import('../db');
+      const db = getDb();
+      const availability = () => db.prepare('SELECT * FROM tutor_availability_slots WHERE tutor_id = 2 ORDER BY id').all();
+      const before = availability();
+      assert.ok(before.length);
+      assert.ok(before.every((slot) => slot.day_of_week !== 3));
+      const wednesday = proposal('30');
+      assert.equal(new Date(wednesday.startsAt).getUTCDay(), 3);
+      assert.equal((await api.call('POST', path, { user: 1, body: { ...body, meeting: wednesday } })).status, 409);
+      const created = await api.call('POST', path, { user: 1, body: { ...body, meeting: proposal('29') } });
+      assert.equal(created.status, 201);
+      const requestPath = path + '/' + created.json.request.id;
+      const proposed = await api.call('POST', requestPath + '/approve', { user: 4, body: wednesday });
+      assert.equal(proposed.status, 200);
+      assert.equal(proposed.json.request.proposal.startsAtJst, '2030-01-30T14:00:00.000+09:00');
+      const declined = await api.call('POST', requestPath + '/cancel', { user: 1 });
+      assert.equal(declined.status, 200);
+      assert.equal(declined.json.request.status, 'cancelled');
+      assert.equal(declined.json.request.sessionId, null);
+      assert.equal((await api.call('POST', requestPath + '/confirm', { user: 1 })).status, 409);
+      assert.deepEqual(availability(), before);
+    });
+
+    it('allows a proposal and confirmation after all weekly slots are removed', async () => {
+      await clearPending(1, 2, 10);
+      const path = '/api/tutoring-requests';
+      const body = { courseId: 10, tutorId: 2, topic: 'Alternative without weekly slots', meeting: proposal('31') };
+      const created = await api.call('POST', path, { user: 1, body });
+      assert.equal(created.status, 201);
+      const { getDb } = await import('../db');
+      const db = getDb();
+      db.prepare('DELETE FROM tutor_availability_slots WHERE tutor_id = ?').run(2);
+      const blocked = await api.call('POST', path, { user: 1, body: { ...body, courseId: 8 } });
+      assert.equal(blocked.status, 400);
+      assert.match(blocked.json.error, /not set any weekly availability/);
+
+      const requestPath = path + '/' + created.json.request.id;
+      const proposed = await api.call('POST', requestPath + '/approve', {
+        user: 4, body: { ...proposal('30', '19:30', '20:30'), locationType: 'online' },
+      });
+      assert.equal(proposed.status, 200);
+      const confirmed = await api.call('POST', requestPath + '/confirm', { user: 1 });
+      assert.equal(confirmed.status, 201);
+      assert.equal(confirmed.json.session.startsAtJst, '2030-01-30T19:30:00.000+09:00');
+      assert.deepEqual(db.prepare('SELECT id FROM tutor_availability_slots WHERE tutor_id = 2').all(), []);
     });
   });
 });
