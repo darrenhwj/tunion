@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS users (
   major TEXT NOT NULL DEFAULT 'Computer Science',
   year INTEGER NOT NULL DEFAULT 1,
   bio TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- 1 hides a legacy/demo account from the demo account selector only; the row and its content are kept.
+  is_hidden INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS courses (
@@ -17,12 +19,16 @@ CREATE TABLE IF NOT EXISTS courses (
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   level INTEGER NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- 1 hides a legacy/demo course from the course directory only; the row and its content are kept.
+  is_hidden INTEGER NOT NULL DEFAULT 0
 );
 
+-- status: 'current' = taking it now, 'completed' = previously taken.
 CREATE TABLE IF NOT EXISTS enrollments (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current','completed')),
   PRIMARY KEY (user_id, course_id)
 );
 
