@@ -6,7 +6,6 @@ import Button from './Button';
 import Card from './Card';
 import { textLink } from './CommunityUI';
 import Glyph from './Glyph';
-import { useCommunity } from '../demo/community';
 import { api } from '../lib/api';
 import { dateTimeJst, locationLabel, monthStart, timeLabel, todayJst, weekdays } from '../lib/schedule';
 import { useApiQuery } from '../lib/useApiQuery';
@@ -41,11 +40,15 @@ async function loadCalendar(key: string, signal: AbortSignal): Promise<CalendarE
       url: '/groups/' + session.groupId + '#session-' + session.id,
     });
   }
+  for (const session of [...joined.oneTimeSessions, ...discover.oneTimeSessions]) {
+    events.push({
+      ...session, course: session.courseCode, kind: 'study', url: '/groups/one-time/' + session.id,
+    });
+  }
   return events;
 }
 
 export default function DashboardCalendar({ accountId, canTutor }: { accountId: number; canTutor: boolean }) {
-  const { courses, data } = useCommunity();
   const today = todayJst();
   const [month, setMonth] = useState(today.slice(0, 7));
   const [day, setDay] = useState<string | null>(null);
@@ -56,15 +59,7 @@ export default function DashboardCalendar({ accountId, canTutor }: { accountId: 
   const days = Array.from({ length: dayCount }, (_, index) => start.slice(0, 8) + String(index + 1).padStart(2, '0'));
   const monthLabel = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(first);
 
-  const monthFrom = Date.parse(dateTimeJst(start + 'T00:00'));
-  const monthTo = Date.parse(dateTimeJst(monthStart(month, 1) + 'T00:00'));
-  const localEvents: CalendarEvent[] = (data.oneTimeSessions ?? [])
-    .filter((session) => session.participantIds.includes(accountId) && Date.parse(session.startsAt) < monthTo && Date.parse(session.endsAt) > monthFrom)
-    .map((session) => ({
-      ...session, course: courses.find((course) => course.id === session.courseId)?.code ?? 'Course',
-      location: locationLabel(session), url: '/groups#one-time-' + session.id, kind: 'study', status: 'scheduled',
-    }));
-  const monthEvents = [...(query.data ?? []).filter((event) => canTutor || event.kind !== 'providing'), ...localEvents]
+  const monthEvents = (query.data ?? []).filter((event) => canTutor || event.kind !== 'providing')
     .sort((left, right) => Date.parse(left.startsAt) - Date.parse(right.startsAt));
 
   function eventsOn(date: string) {

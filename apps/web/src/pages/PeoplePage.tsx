@@ -7,6 +7,7 @@ import { Empty, PageHeading, textLink } from '../components/CommunityUI';
 import { useCommunity } from '../demo/community';
 import { api } from '../lib/api';
 import { fetchContributions, readGuided } from '../lib/discussions';
+import { fetchAuthorResources } from '../lib/resources';
 import { useApiQuery } from '../lib/useApiQuery';
 import { DiscussionList } from './DiscussionsPage';
 import { ResourceList } from './ResourcesPage';
@@ -34,12 +35,13 @@ export function ProfilePage() {
   const { userId = '' } = useParams();
   const profile = useApiQuery(userId, fetchUser);
   const contributions = useApiQuery(userId, fetchContributions);
+  const resourceQuery = useApiQuery(userId, fetchAuthorResources);
   const { courses, data } = useCommunity();
   const person = profile.data?.user;
   if (!person) return <Empty>{profile.error ?? 'Loading profile…'}</Empty>;
 
   const { discussions = [], replies = [], posts } = contributions.data ?? {};
-  const resources = data.resources.filter((item) => item.authorId === person.id);
+  const resources = resourceQuery.data ?? [];
   const ids = new Set([
     ...(data.enrollments[person.id] ?? []),
     ...(data.pastCourses?.[person.id] ?? []),
@@ -68,7 +70,7 @@ export function ProfilePage() {
         <h3 className="font-semibold">Replies ({replies.length})</h3>
         {replies.length ? replies.map((reply) => <Card key={reply.id} className="space-y-2"><Link className={textLink} to={'/discussions/' + reply.discussionId}>{posts?.get(reply.discussionId)?.title ?? 'View discussion'}</Link><p className="line-clamp-2 break-words text-sm">{readGuided(reply.body)?.explanation ?? reply.body}</p></Card>) : <Empty>No replies yet.</Empty>}
       </>}
-      <h3 className="font-semibold">Resources ({resources.length})</h3><ResourceList items={resources} />
+      <h3 className="font-semibold">Resources ({resources.length})</h3><>{resourceQuery.loading || resourceQuery.error ? <Empty>{resourceQuery.error ?? 'Loading resources…'}</Empty> : <ResourceList items={resources} />}</>
     </section>
   </>;
 }

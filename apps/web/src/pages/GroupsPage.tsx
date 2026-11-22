@@ -80,7 +80,7 @@ export default function GroupsPage() {
       <Button type="submit">Publish group</Button>
     </form></Card></RequireAccount>}
     <div className="max-w-md"><Field label="Course"><CourseSelect all includeMyCourses value={course} onChange={setCourse} /></Field></div>
-    <OneTimeSessions items={(data.oneTimeSessions ?? []).filter(matchesCourse)} />
+    <OneTimeSessions course={course} enrolled={enrollments} />
     <section className="space-y-3">
       <h2 className="text-xl font-bold">Groups with calendars</h2>
       {directory.loading || directory.error ? <Empty>{directory.error ?? 'Loading study groups…'}</Empty> : groupsWithCalendars.length

@@ -1,76 +1,76 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
-import { APP_TIME_ZONE, type LocationType } from '@tunion/shared';
+import { useState, type FormEvent } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { LOCATION_TYPE_LABELS, type CreateOneTimeSessionRequest, type CreateOneTimeSessionResponse, type GetOneTimeSessionResponse, type ListOneTimeSessionsResponse, type LocationType, type OneTimeSession, type OneTimeSessionResponse } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
-import { CourseSelect, Empty, Field, Person, field } from '../components/CommunityUI';
+import { CourseSelect, Empty, Field, PageHeading, Person, field, textLink } from '../components/CommunityUI';
 import { LocationField } from '../components/ScheduleFields';
-import { nextId, useCommunity } from '../demo/community';
-import type { DemoStudySession } from '../demo/data';
-import { useDemoAuth } from '../lib/demoAuth';
-import { dateTimeJst, locationLabel, timeLabel, todayJst } from '../lib/schedule';
+import { api, postJson } from '../lib/api';
+import { errorMessage, useApiQuery } from '../lib/useApiQuery';
+import { dateTimeJst, timeLabel, todayJst } from '../lib/schedule';
 
-export default function OneTimeSessions({ items }: { items: DemoStudySession[] }) {
-  const { hash } = useLocation();
-  const { current } = useDemoAuth();
-  const { courses, update } = useCommunity();
+const path = '/one-time-sessions';
+
+function fetchSessions(course: string, signal: AbortSignal) {
+  const params = new URLSearchParams({ limit: '100' });
+  if (course && course !== 'mine') params.set('courseId', course);
+  return api<ListOneTimeSessionsResponse>(path + '?' + params, { signal });
+}
+
+function fetchSession(id: string, signal: AbortSignal) {
+  return api<GetOneTimeSessionResponse>(path + '/' + encodeURIComponent(id), { signal });
+}
+
+export default function OneTimeSessions({ course, enrolled }: { course: string; enrolled: number[] }) {
+  const query = useApiQuery(course, fetchSessions);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const items = (query.data?.sessions ?? []).filter((session) => course !== 'mine' || enrolled.includes(session.courseId));
 
-  useEffect(() => {
-    if (hash.startsWith('#one-time-')) document.getElementById(hash.slice(1))?.scrollIntoView();
-  }, [hash]);
-
-  function create(event: FormEvent<HTMLFormElement>) {
+  async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!current) return;
     const form = new FormData(event.currentTarget);
     const read = (name: string) => String(form.get(name) ?? '').trim();
-    const startsAtJst = dateTimeJst(read('date') + 'T' + read('startTime'));
-    const endsAtJst = dateTimeJst(read('date') + 'T' + read('endTime'));
-    const start = Date.parse(startsAtJst);
-    const end = Date.parse(endsAtJst);
+    const startsAt = dateTimeJst(read('date') + 'T' + read('startTime'));
+    const endsAt = dateTimeJst(read('date') + 'T' + read('endTime'));
+    const start = Date.parse(startsAt);
+    const end = Date.parse(endsAt);
     const title = read('title');
     const description = read('description');
-    if (!title || !description || !Number.isFinite(start) || !Number.isFinite(end) || start <= Date.now() || end <= start) {
+    if (title.length < 3 || !description || !Number.isFinite(start) || !Number.isFinite(end) || start <= Date.now() || end <= start) {
       setError('Enter a title and topic, and choose a future start with a later end time on the same date.');
       return;
     }
 
-    update((previous) => {
-      const sessions = previous.oneTimeSessions ?? [];
-      return { ...previous, oneTimeSessions: [{
-        id: nextId(sessions), courseId: Number(read('courseId')), title, description,
-        startsAt: new Date(start).toISOString(), endsAt: new Date(end).toISOString(), startsAtJst, endsAtJst,
-        timeZone: APP_TIME_ZONE, locationType: read('locationType') as LocationType,
-        locationDetails: read('locationDetails'), participantIds: [current.id],
-      }, ...sessions] };
-    });
-    setEditing(false);
+    const locationType = read('locationType') as LocationType;
+    const request: CreateOneTimeSessionRequest = {
+      courseId: Number(read('courseId')), title, description, startsAt, endsAt,
+      location: [LOCATION_TYPE_LABELS[locationType], read('locationDetails')].filter(Boolean).join(' · '),
+      maxParticipants: Number(read('maxParticipants')),
+    };
+    setSaving(true);
     setError('');
-  }
-
-  function join(id: number) {
-    if (!current) return;
-    update((previous) => ({
-      ...previous,
-      oneTimeSessions: (previous.oneTimeSessions ?? []).map((session) =>
-        session.id === id && !session.participantIds.includes(current.id) && Date.parse(session.startsAt) > Date.now()
-          ? { ...session, participantIds: [...session.participantIds, current.id] }
-          : session),
-    }));
+    try {
+      await postJson<CreateOneTimeSessionResponse>(path, request);
+      setEditing(false);
+      query.refresh();
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return <section className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="text-xl font-bold">One-time study sessions</h2>
-      {current && <Button variant={editing ? 'secondary' : 'primary'} onClick={() => { setEditing(!editing); setError(''); }}>{editing ? 'Cancel session form' : 'Create one-time session'}</Button>}
+      <Button disabled={saving} variant={editing ? 'secondary' : 'primary'} onClick={() => { setEditing(!editing); setError(''); }}>{editing ? 'Cancel session form' : 'Create one-time session'}</Button>
     </div>
-    <p className="text-sm text-ink-500">Demo only. One-time sessions and participation are saved in this browser.</p>
     {editing && <Card><form className="space-y-4" onSubmit={create}>
-      <Field label="Session course"><CourseSelect /></Field>
-      <Field label="Session title"><input name="title" className={field} maxLength={200} required /></Field>
+      <Field label="Session course"><CourseSelect defaultValue={course === 'mine' ? undefined : course} /></Field>
+      <Field label="Session title"><input name="title" className={field} minLength={3} maxLength={200} required /></Field>
       <Field label="Description or topic"><textarea name="description" className={field} maxLength={2000} rows={3} required /></Field>
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Date (JST)"><input type="date" name="date" min={todayJst()} className={field} required /></Field>
@@ -78,26 +78,67 @@ export default function OneTimeSessions({ items }: { items: DemoStudySession[] }
         <Field label="End time (JST)"><input type="time" name="endTime" className={field} required /></Field>
       </div>
       <LocationField />
-      <Field label="Meeting details or link"><input name="locationDetails" maxLength={300} className={field} /></Field>
+      <Field label="Meeting details or link"><input name="locationDetails" maxLength={280} className={field} /></Field>
+      <Field label="Participant limit"><input type="number" name="maxParticipants" min={2} max={50} defaultValue={10} required className={field} /></Field>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <Button type="submit">Publish one-time session</Button>
+      <Button type="submit" disabled={saving}>{saving ? 'Publishing…' : 'Publish one-time session'}</Button>
     </form></Card>}
-    {items.length ? items.map((session) => {
-      const joined = current && session.participantIds.includes(current.id);
-      const started = Date.parse(session.startsAt) <= Date.now();
-      return <Card key={session.id} id={'one-time-' + session.id} className="scroll-mt-4 space-y-2">
-        <div className="flex flex-wrap gap-2">
-          <Badge tone="brand">{courses.find((course) => course.id === session.courseId)?.code ?? 'Course'}</Badge>
-          <Badge>One-time · Browser-local</Badge>
-          {joined && <Badge tone="brand">Joined session</Badge>}
-        </div>
-        <h3 className="break-words font-bold">{session.title}</h3>
-        <p className="whitespace-pre-wrap break-words text-sm">{session.description}</p>
-        <p className="text-sm">{timeLabel(session)}</p>
-        <p className="break-words text-sm">{locationLabel(session)}</p>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm"><strong>Participants ({session.participantIds.length})</strong>{session.participantIds.map((id) => <Person key={id} id={id} />)}</div>
-        {current && !joined && !started && <Button variant="secondary" onClick={() => join(session.id)}>Join one-time session</Button>}
-      </Card>;
-    }) : <Empty>No one-time sessions match this course filter.</Empty>}
+    {query.loading || query.error ? <Empty>{query.error ?? 'Loading one-time sessions…'}</Empty>
+      : items.length ? items.map((session) => <SessionCard key={session.id} session={session} refresh={query.refresh} refreshing={query.refreshing} />)
+      : <Empty>No one-time sessions match this course filter.</Empty>}
   </section>;
+}
+
+export function OneTimeSessionPage() {
+  const { sessionId = '' } = useParams();
+  const query = useApiQuery(sessionId, fetchSession);
+  const session = query.data?.session;
+  return <>
+    <Link to="/groups" className={textLink}>← Study groups</Link>
+    {session ? <>
+      <PageHeading title={session.title} description={session.courseTitle} />
+      <SessionCard key={session.id} session={session} refresh={query.refresh} refreshing={query.refreshing} detail />
+    </> : <Empty>{query.error ?? 'Loading one-time session…'}</Empty>}
+  </>;
+}
+
+function SessionCard({ session, refresh, refreshing, detail = false }: { session: OneTimeSession; refresh: () => void; refreshing: boolean; detail?: boolean }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const started = Date.parse(session.startsAt) <= Date.now();
+  const full = session.participantCount >= session.maxParticipants;
+
+  async function change(action: 'join' | 'leave' | 'cancel') {
+    setSaving(true);
+    setError('');
+    try {
+      await api<OneTimeSessionResponse>(path + '/' + session.id + '/' + (action === 'leave' ? 'join' : action), { method: action === 'leave' ? 'DELETE' : 'POST' });
+      refresh();
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <Card className="space-y-2">
+    <div className="flex flex-wrap gap-2">
+      <Badge tone="brand">{session.courseCode}</Badge>
+      <Badge>{session.status === 'cancelled' ? 'Cancelled' : 'One-time'}</Badge>
+      {session.isParticipant && <Badge tone="brand">Joined session</Badge>}
+    </div>
+    {!detail && <h3 className="break-words font-bold"><Link className={textLink} to={'/groups/one-time/' + session.id}>{session.title}</Link></h3>}
+    <p className="whitespace-pre-wrap break-words text-sm">{session.description}</p>
+    <p className="text-sm">{timeLabel(session)}</p>
+    <p className="break-words text-sm">{session.location}</p>
+    <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm"><strong>Participants ({session.participantCount}/{session.maxParticipants})</strong>{session.participants.map(({ id }) => <Person key={id} id={id} />)}</div>
+    {session.status === 'scheduled' && <div className="flex flex-wrap gap-2">
+      {!session.isParticipant && !started && <Button variant="secondary" disabled={full || saving || refreshing} onClick={() => void change('join')}>{full ? 'Session full' : 'Join one-time session'}</Button>}
+      {session.isParticipant && !session.isCreator && <Button variant="secondary" disabled={saving || refreshing} onClick={() => void change('leave')}>Leave session</Button>}
+      {session.isCreator && <Button variant="secondary" disabled={saving || refreshing} onClick={() => {
+        if (window.confirm('Cancel this one-time session?')) void change('cancel');
+      }}>Cancel session</Button>}
+    </div>}
+    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+  </Card>;
 }

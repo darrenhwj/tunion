@@ -23,7 +23,7 @@ export default function Layout() {
           {navigation.map(([icon, to, label]) => <NavLink key={to} to={to} end={to === '/'} className={navClass}><Glyph name={icon} />{label}</NavLink>)}
           <NavLink to={current ? '/people/' + current.id : '/my-profile'} className={navClass}><Glyph name="profile" />My Profile</NavLink>
         </nav>
-        {current && <p className="mt-auto hidden px-6 py-6 text-xs leading-relaxed text-ink-500 lg:block">Local demo. Resources and browser-local groups are saved in this browser.</p>}
+        {current && <p className="mt-auto hidden px-6 py-6 text-xs leading-relaxed text-ink-500 lg:block">Local demo. Demo group creation and membership are saved in this browser.</p>}
       </aside>
       <div className="min-w-0">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3 sm:px-8 lg:min-h-[74px]">
@@ -31,7 +31,7 @@ export default function Layout() {
           <DemoAccountSwitcher />
         </header>
         <main className="mx-auto max-w-7xl space-y-7 px-4 py-7 sm:px-8 sm:py-9">
-          {current && <p className="text-xs text-ink-500 lg:hidden">Local demo. Resources and browser-local groups are saved in this browser.</p>}
+          {current && <p className="text-xs text-ink-500 lg:hidden">Local demo. Demo group creation and membership are saved in this browser.</p>}
           {current && storageError && <p role="alert" className="rounded-lg bg-amber-100 p-3 text-sm text-amber-900">{storageError}</p>}
           <Outlet />
         </main>
