@@ -316,6 +316,7 @@ export interface TutoringRequestDetail extends TutoringRequest {
   tutor: AuthorSummary | null; // the tutor's user account
   courseCode: string;
   slotId: ID | null; // availability slot the student asked about, if any
+  requestedMeeting: MeetingDetails | null;
   /** Set once the tutor approves (status accepted/confirmed/...). */
   proposal: MeetingDetails | null;
   tutorNote: string; // approval/rejection note from the tutor
@@ -330,6 +331,7 @@ export interface CreateTutoringRequestRequest {
   topic: string; // 3-200 chars
   details?: string; // <= 5000 chars
   slotId?: ID | null; // must belong to that tutor
+  meeting?: Pick<MeetingDetails, 'startsAt' | 'endsAt' | 'locationType' | 'locationDetails'>;
 }
 export type CreateTutoringRequestResponse = { request: TutoringRequestDetail };
 
@@ -356,6 +358,8 @@ export interface RejectTutoringRequestRequest {
 /** POST /api/tutoring-requests/:id/cancel (the student; open/accepted -> cancelled). No body. */
 export type TutoringRequestResponse = { request: TutoringRequestDetail };
 /** POST /api/tutoring-requests/:id/confirm (the student; accepted -> confirmed, creates the session). No body. */
+/** POST /api/tutoring-requests/:id/accept (the requested tutor; confirms the exact requested meeting). No body. */
+export type AcceptTutoringRequestResponse = ConfirmTutoringRequestResponse;
 export type ConfirmTutoringRequestResponse = { request: TutoringRequestDetail; session: TutoringSession };
 
 // ---------------- Tutoring sessions ----------------

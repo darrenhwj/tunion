@@ -1,6 +1,7 @@
-import type { TutoringRequestDetail, TutoringSession } from '@tunion/shared';
+import type { LocationType, TutoringRequestDetail, TutoringSession } from '@tunion/shared';
 import { getDb } from './db';
 import { HttpError } from './http';
+import { toJst } from './time';
 import { toTutoringRequest, toTutoringSession } from './mappers';
 
 export const REQUEST_SELECT = `
@@ -51,4 +52,18 @@ export function hasSessionConflict(userId: number, startsAt: string, endsAt: str
          AND (ts.student_id = :u OR t.user_id = :u) LIMIT 1`,
     )
     .get({ u: userId, start: startsAt, end: endsAt });
+}
+
+
+export function fitsTutorAvailability(tutorId: number, startsAt: string, endsAt: string, locationType: LocationType, slotId: number | null = null) {
+  const start = toJst(startsAt);
+  const end = toJst(endsAt);
+  if (start.slice(0, 10) !== end.slice(0, 10)) return false;
+  const weekday = new Date(start.slice(0, 10) + 'T00:00:00Z').getUTCDay();
+  return !!getDb().prepare(`
+    SELECT 1 FROM tutor_availability_slots
+    WHERE tutor_id = :tutorId AND day_of_week = :weekday AND location_type = :locationType
+      AND start_time || ':00.000' <= :start AND end_time || ':00.000' >= :end
+      AND (:slotId IS NULL OR id = :slotId)
+  `).get({ tutorId, weekday, locationType, start: start.slice(11, 23), end: end.slice(11, 23), slotId });
 }

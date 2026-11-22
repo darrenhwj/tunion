@@ -22,7 +22,7 @@ export default function DiscussionPage() {
 
 function DiscussionThread({ thread, refreshing, refresh }: { thread: GetDiscussionResponse; refreshing: boolean; refresh: () => void }) {
   const { discussion: post, replies } = thread;
-  const { courses, data, update } = useCommunity();
+  const { courses } = useCommunity();
   const { current } = useDemoAuth();
   const [saving, setSaving] = useState(false);
   const pending = saving || refreshing;
@@ -30,8 +30,6 @@ function DiscussionThread({ thread, refreshing, refresh }: { thread: GetDiscussi
   const [parent, setParent] = useState<ThreadedReply | null>(null);
   const { category, body } = readDiscussion(post.body);
   const course = courses.find((item) => item.id === post.courseId);
-  const voteKey = post.id + ':' + post.createdAt + ':' + current?.id;
-  const downvoted = !!data.downvotes?.[voteKey];
   const canAccept = !!current && (current.id === post.authorId || current.role !== 'student');
 
   async function mutate(change: () => Promise<unknown>, after?: () => void) {
@@ -49,23 +47,8 @@ function DiscussionThread({ thread, refreshing, refresh }: { thread: GetDiscussi
     }
   }
 
-  function setDownvote(value: boolean) {
-    update((previous) => ({ ...previous, downvotes: { ...previous.downvotes, [voteKey]: value } }));
-  }
-
   function vote() {
-    void mutate(
-      () => api<VoteResponse>('/discussions/' + post.id + '/upvote', { method: post.hasUpvoted ? 'DELETE' : 'POST' }),
-      () => setDownvote(false),
-    );
-  }
-
-  function downvote() {
-    if (!post.hasUpvoted) {
-      setDownvote(!downvoted);
-      return;
-    }
-    void mutate(() => api<VoteResponse>('/discussions/' + post.id + '/upvote', { method: 'DELETE' }), () => setDownvote(true));
+    void mutate(() => api<VoteResponse>('/discussions/' + post.id + '/upvote', { method: post.hasUpvoted ? 'DELETE' : 'POST' }));
   }
 
   function reply(event: FormEvent<HTMLFormElement>, guided: boolean) {
@@ -97,7 +80,6 @@ function DiscussionThread({ thread, refreshing, refresh }: { thread: GetDiscussi
         <Button type="button" variant={post.hasUpvoted ? 'primary' : 'secondary'} disabled={!current || current.id === post.authorId || pending} aria-label="Upvote discussion" aria-pressed={post.hasUpvoted} onClick={vote}>↑</Button>
         {current?.role === 'admin' && <AdminDeleteButton postId={post.id} courseId={post.courseId} />}
         <span aria-live="polite" className="text-sm font-semibold">{post.upvoteCount} {post.upvoteCount === 1 ? 'upvote' : 'upvotes'}</span>
-        <Button type="button" variant={downvoted ? 'primary' : 'secondary'} disabled={!current || pending} aria-label="Downvote discussion on this browser" aria-pressed={downvoted} onClick={downvote}>↓ Local downvote</Button>
       </div>
     </Card>
     <section className="space-y-3">

@@ -8,7 +8,7 @@ import { CourseSelect, Empty, Field, PageHeading, Person, field, textLink } from
 import { LocationField } from '../components/ScheduleFields';
 import { api, postJson } from '../lib/api';
 import { errorMessage, useApiQuery } from '../lib/useApiQuery';
-import { dateTimeJst, timeLabel, todayJst } from '../lib/schedule';
+import { dateTimeJst, newMeetingTimes, timeLabel, todayJst } from '../lib/schedule';
 
 const path = '/one-time-sessions';
 
@@ -24,7 +24,7 @@ function fetchSession(id: string, signal: AbortSignal) {
 
 export default function OneTimeSessions({ course, enrolled }: { course: string; enrolled: number[] }) {
   const query = useApiQuery(course, fetchSessions);
-  const [editing, setEditing] = useState(false);
+  const [initial, setInitial] = useState<ReturnType<typeof newMeetingTimes> | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const items = (query.data?.sessions ?? []).filter((session) => course !== 'mine' || enrolled.includes(session.courseId));
@@ -54,7 +54,7 @@ export default function OneTimeSessions({ course, enrolled }: { course: string; 
     setError('');
     try {
       await postJson<CreateOneTimeSessionResponse>(path, request);
-      setEditing(false);
+      setInitial(null);
       query.refresh();
     } catch (error) {
       setError(errorMessage(error));
@@ -66,16 +66,16 @@ export default function OneTimeSessions({ course, enrolled }: { course: string; 
   return <section className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="text-xl font-bold">One-time study sessions</h2>
-      <Button disabled={saving} variant={editing ? 'secondary' : 'primary'} onClick={() => { setEditing(!editing); setError(''); }}>{editing ? 'Cancel session form' : 'Create one-time session'}</Button>
+      <Button disabled={saving} variant={initial ? 'secondary' : 'primary'} onClick={() => { setInitial(initial ? null : newMeetingTimes()); setError(''); }}>{initial ? 'Cancel session form' : 'Create one-time session'}</Button>
     </div>
-    {editing && <Card><form className="space-y-4" onSubmit={create}>
+    {initial && <Card><form className="space-y-4" onSubmit={create}>
       <Field label="Session course"><CourseSelect defaultValue={course === 'mine' ? undefined : course} /></Field>
       <Field label="Session title"><input name="title" className={field} minLength={3} maxLength={200} required /></Field>
       <Field label="Description or topic"><textarea name="description" className={field} maxLength={2000} rows={3} required /></Field>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Date (JST)"><input type="date" name="date" min={todayJst()} className={field} required /></Field>
-        <Field label="Start time (JST)"><input type="time" name="startTime" className={field} required /></Field>
-        <Field label="End time (JST)"><input type="time" name="endTime" className={field} required /></Field>
+        <Field label="Date (JST)"><input type="date" name="date" defaultValue={initial.startsAt.slice(0, 10)} min={todayJst()} className={field} required /></Field>
+        <Field label="Start time (JST)"><input type="time" name="startTime" defaultValue={initial.startsAt.slice(11)} className={field} required /></Field>
+        <Field label="End time (JST)"><input type="time" name="endTime" defaultValue={initial.startsAt.slice(0, 10) === initial.endsAt.slice(0, 10) ? initial.endsAt.slice(11) : '23:59'} className={field} required /></Field>
       </div>
       <LocationField />
       <Field label="Meeting details or link"><input name="locationDetails" maxLength={280} className={field} /></Field>

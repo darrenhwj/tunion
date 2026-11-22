@@ -96,6 +96,8 @@ describe('booking a tutor from their profile', () => {
     const r = await book(1, { courseId: 8, tutorId: 2 });
     assert.equal(r.status, 201);
     const id = r.json.request.id;
+    const { getDb } = await import('../db');
+    getDb().exec("INSERT INTO tutor_availability_slots (tutor_id, day_of_week, start_time, end_time, location_type) VALUES (2, 2, '10:00', '11:00', 'online')");
     const approve = await api.call('POST', `/api/tutoring-requests/${id}/approve`, {
       user: 4, body: { startsAt: '2031-02-04T10:00:00+09:00', endsAt: '2031-02-04T11:00:00+09:00', locationType: 'online' },
     });

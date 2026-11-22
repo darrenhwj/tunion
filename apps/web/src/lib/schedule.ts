@@ -6,6 +6,14 @@ export function todayJst() {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: APP_TIME_ZONE }).format(new Date());
 }
 
+export function newMeetingTimes(durationMinutes = 60) {
+  const start = Math.floor(Date.now() / 60_000) * 60_000 + 60_000;
+  const format = (instant: number) => new Intl.DateTimeFormat('sv-SE', {
+    timeZone: APP_TIME_ZONE, dateStyle: 'short', timeStyle: 'short',
+  }).format(instant).replace(' ', 'T');
+  return { startsAt: format(start), endsAt: format(start + durationMinutes * 60_000) };
+}
+
 export function monthStart(month: string, offset: number) {
   const date = new Date(month + '-01T00:00:00Z');
   date.setUTCMonth(date.getUTCMonth() + offset);

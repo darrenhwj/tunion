@@ -1,7 +1,7 @@
 import AccountBadges from '../components/AccountBadges';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import type { ApproveTutoringRequestRequest, ConfirmTutoringRequestResponse, ListTutoringRequestsResponse, ListTutoringSessionsResponse, LocationType, RejectTutoringRequestRequest, TutoringRequestDetail, TutoringRequestResponse, TutoringSessionResponse } from '@tunion/shared';
+import type { AcceptTutoringRequestResponse, ApproveTutoringRequestRequest, ConfirmTutoringRequestResponse, ListTutoringRequestsResponse, ListTutoringSessionsResponse, LocationType, RejectTutoringRequestRequest, TutoringRequestDetail, TutoringRequestResponse, TutoringSessionResponse } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
@@ -17,6 +17,21 @@ const sessionsPath = '/tutoring-sessions';
 function fetchRequests(_key: string, signal: AbortSignal) {
   return api<ListTutoringRequestsResponse>(requestsPath, { signal });
 }
+function fetchIncomingRequests(_key: string, signal: AbortSignal) {
+  return api<ListTutoringRequestsResponse>(requestsPath + '?role=tutor&status=open', { signal });
+}
+
+export function IncomingTutoringRequests({ userId, onChange }: { userId: number; onChange: () => void }) {
+  const query = useApiQuery('', fetchIncomingRequests);
+  const requests = query.data?.requests.filter((request) => request.tutor?.id === userId && request.studentId !== userId && request.status === 'open') ?? [];
+  if (!requests.length) return null;
+  return <section aria-labelledby="incoming-tutoring" className="space-y-3">
+    <h2 id="incoming-tutoring" className="text-xl font-bold tracking-tight">Incoming Tutoring Requests ({requests.length})</h2>
+    {requests.map((request) => <RequestCard key={request.id} request={request} userId={userId} refreshing={query.refreshing}
+      refresh={() => { query.refresh(); onChange(); }} />)}
+  </section>;
+}
+
 function fetchSessions(_key: string, signal: AbortSignal) {
   return api<ListTutoringSessionsResponse>(sessionsPath, { signal });
 }
@@ -57,11 +72,13 @@ export function TutoringActivity({ userId }: { userId: number }) {
 }
 
 function RequestCard({ request, userId, refresh, refreshing }: { request: TutoringRequestDetail; userId: number; refresh: () => void; refreshing: boolean }) {
-  const [editing, setEditing] = useState<'approve' | 'reject' | null>(null);
+  const [editing, setEditing] = useState<'accept' | 'approve' | 'reject' | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const pending = refreshing || saving;
   const sent = request.studentId === userId;
+  const requested = request.requestedMeeting;
+  const duration = requested ? (Date.parse(requested.endsAt) - Date.parse(requested.startsAt)) / 60_000 : undefined;
   const path = requestsPath + '/' + request.id;
 
   async function mutate(change: () => Promise<unknown>) {
@@ -87,6 +104,10 @@ function RequestCard({ request, userId, refresh, refreshing }: { request: Tutori
       void mutate(() => postJson<TutoringRequestResponse>(path + '/reject', payload));
       return;
     }
+    if (editing === 'accept') {
+      void mutate(() => api<AcceptTutoringRequestResponse>(path + '/accept', { method: 'POST' }));
+      return;
+    }
     const payload: ApproveTutoringRequestRequest = {
       startsAt: dateTimeJst(read('startsAt')), endsAt: dateTimeJst(read('endsAt')),
       locationType: read('locationType') as LocationType, locationDetails: read('locationDetails'), note: read('note'),
@@ -99,18 +120,29 @@ function RequestCard({ request, userId, refresh, refreshing }: { request: Tutori
     <h3 className="break-words font-bold">{request.topic}</h3>
     <p className="text-sm text-ink-500">{sent ? 'To ' + (request.tutor?.name ?? 'peer tutor') : 'From ' + request.student.name}{request.slotId !== null && ' · Weekly slot requested'}</p>
     {request.details && <p className="whitespace-pre-wrap break-words text-sm">{request.details}</p>}
+    {requested && request.status === 'open' && <div className="rounded-lg bg-canvas p-3 text-sm">
+      <p className="font-semibold">{timeLabel(requested)} · {duration} min</p>
+      <p className="break-words">{locationLabel(requested)}</p>
+    </div>}
     {request.proposal && <div className="rounded-lg bg-canvas p-3 text-sm"><p className="font-semibold">{timeLabel(request.proposal)}</p><p className="break-words">{locationLabel(request.proposal)}</p></div>}
     {request.tutorNote && <p className="whitespace-pre-wrap break-words text-sm text-ink-700">{request.tutorNote}</p>}
     {request.sessionId && <Link className={textLink} to={'/tutoring/sessions/' + request.sessionId}>View session →</Link>}
     {!sent && request.status === 'open' && !editing && <div className="flex flex-wrap gap-2">
-      <Button disabled={pending} onClick={() => setEditing('approve')}>Propose a meeting</Button>
+      {requested && <Button disabled={pending} onClick={() => setEditing('accept')}>Accept</Button>}
+      <Button disabled={pending} variant={requested ? 'secondary' : 'primary'} onClick={() => setEditing('approve')}>{requested ? 'Propose Another Time' : 'Propose a meeting'}</Button>
       <Button disabled={pending} variant="secondary" onClick={() => setEditing('reject')}>Decline</Button>
     </div>}
     {!sent && request.status === 'open' && editing && <form onSubmit={submit}><fieldset className="min-w-0 space-y-3" disabled={pending}>
-      {editing === 'approve' && <><MeetingTimes /><LocationField /><Field label="Location details"><input name="locationDetails" maxLength={300} className={field} /></Field></>}
-      <Field label="Note to student"><textarea name="note" maxLength={1000} className={field} rows={2} /></Field>
+      {editing === 'accept' && requested && <p className="text-sm">Confirm {timeLabel(requested)} · {locationLabel(requested)}</p>}
+      {editing === 'approve' && <>
+        <p className="text-sm">Choose a time and format within your weekly availability. <Link className={textLink} to="/tutoring/availability">View availability</Link></p>
+        <MeetingTimes durationMinutes={duration} /><LocationField value={requested?.locationType} />
+        <Field label="Location details"><input name="locationDetails" defaultValue={requested?.locationDetails} maxLength={300} className={field} /></Field>
+      </>}
+      {editing !== 'accept' && <Field label="Note to student"><textarea name="note" maxLength={1000} className={field} rows={2} /></Field>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit">{editing === 'approve' ? 'Send proposal' : 'Decline request'}</Button>
+        <Button type="submit">{editing === 'accept' ? 'Confirm requested time' : editing === 'approve' ? 'Send proposal' : 'Decline request'}</Button>
+        {editing === 'accept' && <Button type="button" variant="secondary" onClick={() => { setEditing('approve'); setError(''); }}>Propose Another Time</Button>}
         <Button type="button" variant="secondary" onClick={() => { setEditing(null); setError(''); }}>Back</Button>
       </div>
     </fieldset></form>}

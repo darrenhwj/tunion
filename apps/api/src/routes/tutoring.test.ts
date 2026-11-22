@@ -6,7 +6,16 @@ import { startTestApi, type TestApi } from '../test/helpers';
 // Test meetings use fixed far-future dates so they never depend on the wall clock.
 describe('tutoring requests and sessions', () => {
   let api: TestApi;
-  before(async () => { api = await startTestApi(); });
+  before(async () => {
+    api = await startTestApi();
+    const { getDb } = await import('../db');
+    getDb().exec(`
+      INSERT INTO tutor_availability_slots (tutor_id, day_of_week, start_time, end_time, location_type)
+      SELECT tutor_id, weekday, '09:00', '17:00', 'city_campus'
+      FROM (SELECT 1 AS tutor_id UNION ALL SELECT 2)
+      CROSS JOIN (SELECT 0 AS weekday UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 4 UNION ALL SELECT 5)
+    `);
+  });
   after(() => api.close());
 
   const proposal = (day: string, from = '14:00', to = '15:00') => ({
@@ -162,6 +171,61 @@ describe('tutoring requests and sessions', () => {
       await api.call('POST', `/api/tutoring-requests/${b.id}/approve`, { user: 4, body: proposal('25') });
       assert.equal((await api.call('POST', `/api/tutoring-requests/${a.id}/confirm`, { user: 1 })).status, 201);
       assert.equal((await api.call('POST', `/api/tutoring-requests/${b.id}/confirm`, { user: 1 })).status, 409);
+    });
+  });
+
+  describe('accepting an exact requested meeting', () => {
+    const path = '/api/tutoring-requests';
+    const meeting = proposal('29', '09:15', '10:30');
+
+    it('keeps incoming lists scoped to the tutor and books the original JST time once', async () => {
+      await clearPending(2, 1, 7);
+      const create = await api.call('POST', path, { user: 2, body: { courseId: 7, tutorId: 1, topic: 'Exact JST time', meeting } });
+      assert.equal(create.status, 201);
+      const { id, requestedMeeting } = create.json.request;
+      assert.equal(requestedMeeting.startsAtJst, '2030-01-29T09:15:00.000+09:00');
+      assert.equal(requestedMeeting.locationDetails, meeting.locationDetails);
+      const pendingIds = async (user: number) => (await api.call('GET', path + '?role=tutor&status=open', { user })).json.requests
+        .map((request: { id: number }) => request.id);
+      assert.ok((await pendingIds(3)).includes(id));
+      assert.ok(!(await pendingIds(4)).includes(id));
+      const accept = (user: number) => api.call('POST', path + '/' + id + '/accept', { user });
+      assert.equal((await accept(2)).status, 403);
+      assert.equal((await accept(4)).status, 403);
+      const accepted = await accept(3);
+      assert.equal(accepted.status, 201);
+      assert.equal(accepted.json.request.status, 'confirmed');
+      const { session } = accepted.json;
+      for (const key of ['startsAt', 'endsAt', 'locationType', 'locationDetails'] as const) {
+        assert.equal(session[key], requestedMeeting[key]);
+      }
+      assert.equal((await accept(3)).status, 409);
+      assert.ok(!(await pendingIds(3)).includes(id));
+      const calendar = await api.call('GET', '/api/calendar/tutoring?from=2030-01-29&to=2030-01-30', { user: 3 });
+      assert.deepEqual(calendar.json.sessions.map((item: { id: number }) => item.id), [session.id]);
+    });
+
+    it('requires an explicit alternative when the original time has passed or become unavailable', async () => {
+      await clearPending(2, 1, 5);
+      const body = { courseId: 5, tutorId: 1, topic: 'Availability check', meeting: proposal('29', '19:00', '20:00') };
+      assert.equal((await api.call('POST', path, { user: 2, body })).status, 409);
+      const created = await api.call('POST', path, { user: 2, body: { ...body, meeting: proposal('31') } });
+      assert.equal(created.status, 201);
+      const id = created.json.request.id;
+      const { getDb } = await import('../db');
+      const db = getDb();
+      const alter = db.prepare('UPDATE tutoring_requests SET requested_starts_at = ?, requested_ends_at = ? WHERE id = ?');
+      const accept = () => api.call('POST', path + '/' + id + '/accept', { user: 3 });
+      alter.run('2000-01-01T05:00:00.000Z', '2000-01-01T06:00:00.000Z', id);
+      assert.match((await accept()).json.error, /passed/);
+      alter.run('2030-01-31T10:00:00.000Z', '2030-01-31T11:00:00.000Z', id);
+      assert.match((await accept()).json.error, /outside/);
+      const approve = (meeting: ReturnType<typeof proposal>) => api.call('POST', path + '/' + id + '/approve', { user: 3, body: meeting });
+      assert.equal((await approve(body.meeting)).status, 409);
+      assert.equal((await approve(proposal('31'))).status, 200);
+      const confirmed = await api.call('POST', path + '/' + id + '/confirm', { user: 2 });
+      assert.equal(confirmed.status, 201);
+      assert.equal(confirmed.json.session.startsAtJst, '2030-01-31T14:00:00.000+09:00');
     });
   });
 

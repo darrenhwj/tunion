@@ -1,15 +1,16 @@
 import AccountBadges from '../components/AccountBadges';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
-import { LOCATION_TYPE_LABELS, type CreateTutoringRequestRequest, type CreateTutoringRequestResponse, type GetTutorResponse, type ListTutorsResponse, type TutorProfile } from '@tunion/shared';
+import { LOCATION_TYPE_LABELS, type CreateTutoringRequestRequest, type CreateTutoringRequestResponse, type GetTutorResponse, type ListTutorsResponse, type TutorProfile, type LocationType } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import { CourseSelect, Empty, Field, PageHeading, RequireAccount, field, textLink } from '../components/CommunityUI';
+import { LocationField, MeetingTimes } from '../components/ScheduleFields';
 import { useCommunity } from '../demo/community';
 import { api, postJson } from '../lib/api';
 import { useDemoAuth } from '../lib/demoAuth';
-import { weekdays } from '../lib/schedule';
+import { dateTimeJst, weekdays } from '../lib/schedule';
 import { errorMessage, useApiQuery } from '../lib/useApiQuery';
 import { TutoringActivity } from './TutoringActivity';
 
@@ -118,6 +119,12 @@ function RequestForm({ tutor }: { tutor: TutorProfile }) {
       topic: String(form.get('topic')).trim(),
       details: String(form.get('details')).trim(),
       slotId: Number(form.get('slotId')) || null,
+      meeting: {
+        startsAt: dateTimeJst(String(form.get('startsAt'))),
+        endsAt: dateTimeJst(String(form.get('endsAt'))),
+        locationType: String(form.get('locationType')) as LocationType,
+        locationDetails: String(form.get('locationDetails')).trim(),
+      },
     };
     setPending(true);
     setSubmitted(false);
@@ -138,10 +145,14 @@ function RequestForm({ tutor }: { tutor: TutorProfile }) {
       <option value="">Choose a course</option>{courses.filter((course) => tutor.courseIds.includes(course.id)).map((course) => <option value={course.id} key={course.id}>{course.code} · {course.title}</option>)}
     </select></Field>
     {tutor.slots.length > 0 && <Field label="Preferred weekly slot (day, time and format)"><select name="slotId" className={field}><option value="">No preference</option>{tutor.slots.map((slot) => <option key={slot.id} value={slot.id}>{slotLabel(slot)}</option>)}</select></Field>}
+    <p className="text-sm text-ink-700">Choose a time and format within the tutor’s weekly availability above.</p>
+    <MeetingTimes />
+    <LocationField />
+    <Field label="Location details"><input name="locationDetails" maxLength={300} className={field} /></Field>
     <Field label="Topic"><input name="topic" className={field} required minLength={3} maxLength={200} /></Field>
     <Field label="What are you working on?"><textarea name="details" className={field} maxLength={5000} rows={4} /></Field>
     <Button type="submit">{pending ? 'Sending…' : 'Send booking request'}</Button>
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-    {submitted && <p role="status" className="text-sm text-brand-700">Request sent to {tutor.user.name}. They can approve or reject it and propose a time. <Link className={textLink} to="/tutoring#requests">View my requests</Link></p>}
+    {submitted && <p role="status" className="text-sm text-brand-700">Request sent to {tutor.user.name}. They can accept, decline, or propose another time. <Link className={textLink} to="/tutoring#requests">View my requests</Link></p>}
   </fieldset></form></Card>;
 }

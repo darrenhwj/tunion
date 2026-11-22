@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import type {
-  ConfirmTutoringRequestResponse, CreateTutoringRequestResponse, GetTutoringRequestResponse, ListTutoringRequestsResponse,
-  LocationType, TutoringRequestResponse, TutoringRequestStatus,
+  AcceptTutoringRequestResponse, ConfirmTutoringRequestResponse, CreateTutoringRequestResponse, GetTutoringRequestResponse, ListTutoringRequestsResponse,
+  LocationType, MeetingDetails, TutoringRequestDetail, TutoringRequestResponse, TutoringRequestStatus,
 } from '@tunion/shared';
 import { LOCATION_TYPES } from '@tunion/shared';
 import { getDb } from '../db';
 import { toTutoringRequest } from '../mappers';
 import { HttpError, bodyObject, parseId, queryString, requireDemoUser } from '../http';
-import { REQUEST_SELECT, hasSessionConflict, loadRequest, loadSession } from '../tutoring';
+import { REQUEST_SELECT, fitsTutorAvailability, hasSessionConflict, loadRequest, loadSession } from '../tutoring';
 import { nowIso, parseFutureMeeting } from '../time';
 
 export const tutoringRequestsRouter = Router();
@@ -20,6 +20,21 @@ function optionalText(obj: Record<string, unknown>, field: string, max: number):
   if (v === undefined || v === null) return '';
   if (typeof v !== 'string' || v.trim().length > max) throw new HttpError(400, `${field} must be a string of at most ${max} characters`);
   return v.trim();
+}
+
+function readMeeting(body: Record<string, unknown>) {
+  const times = parseFutureMeeting(body.startsAt, body.endsAt, 8);
+  const locationType = body.locationType as LocationType;
+  if (!LOCATION_TYPES.includes(locationType)) {
+    throw new HttpError(400, `locationType must be one of ${LOCATION_TYPES.join(', ')}`);
+  }
+  return { ...times, locationType, locationDetails: optionalText(body, 'locationDetails', 300) };
+}
+
+function requireAvailability(tutorId: number, meeting: Pick<MeetingDetails, 'startsAt' | 'endsAt' | 'locationType'>, slotId?: number | null) {
+  if (!fitsTutorAvailability(tutorId, meeting.startsAt, meeting.endsAt, meeting.locationType, slotId)) {
+    throw new HttpError(409, 'This time and format are outside the tutor’s weekly availability. Choose an available alternative.');
+  }
 }
 
 function transition(id: number, to: TutoringRequestStatus, extra: Record<string, string | null> = {}) {
@@ -66,10 +81,17 @@ tutoringRequestsRouter.post('/', (req, res) => {
   if (db.prepare("SELECT 1 FROM tutoring_requests WHERE student_id = ? AND tutor_id = ? AND course_id = ? AND status IN ('open','accepted')").get(user.id, tutorId, courseId)) {
     throw new HttpError(409, 'You already have a pending request with this tutor for that course');
   }
+  const meeting = body.meeting === undefined ? null : readMeeting(bodyObject(body.meeting));
+  if (meeting) {
+    requireAvailability(tutorId, meeting, slotId);
+    if (hasSessionConflict(user.id, meeting.startsAt, meeting.endsAt) || hasSessionConflict(tutor.user_id, meeting.startsAt, meeting.endsAt)) {
+      throw new HttpError(409, 'Someone involved already has a session at that time');
+    }
+  }
   const now = nowIso();
   const { lastInsertRowid } = db
-    .prepare(`INSERT INTO tutoring_requests (course_id, student_id, tutor_id, topic, details, slot_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)`)
-    .run(courseId, user.id, tutorId, body.topic.trim(), details, slotId, now, now);
+    .prepare(`INSERT INTO tutoring_requests (course_id, student_id, tutor_id, topic, details, slot_id, requested_starts_at, requested_ends_at, requested_location_type, requested_location_details, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(courseId, user.id, tutorId, body.topic.trim(), details, slotId, meeting?.startsAt ?? null, meeting?.endsAt ?? null, meeting?.locationType ?? null, meeting?.locationDetails ?? null, now, now);
   res.status(201).json({ request: loadRequest(Number(lastInsertRowid)) } satisfies CreateTutoringRequestResponse);
 });
 
@@ -107,15 +129,13 @@ tutoringRequestsRouter.post('/:id/approve', (req, res) => {
   const request = asRole(req, 'tutor');
   requireStatus(request.status, ['open'], 'approve');
   const body = bodyObject(req.body);
-  const { startsAt, endsAt } = parseFutureMeeting(body.startsAt, body.endsAt, 8);
-  if (typeof body.locationType !== 'string' || !LOCATION_TYPES.includes(body.locationType as LocationType)) {
-    throw new HttpError(400, `locationType must be one of ${LOCATION_TYPES.join(', ')}`);
-  }
-  const locationDetails = optionalText(body, 'locationDetails', 300);
+  const meeting = readMeeting(body);
+  const { startsAt, endsAt, locationType, locationDetails } = meeting;
+  requireAvailability(request.tutorId!, meeting);
   const note = optionalText(body, 'note', 1000);
   if (hasSessionConflict(req.demoUser!.id, startsAt, endsAt)) throw new HttpError(409, 'You already have a session at that time');
   transition(request.id, 'accepted', {
-    proposed_starts_at: startsAt, proposed_ends_at: endsAt, proposed_location_type: body.locationType,
+    proposed_starts_at: startsAt, proposed_ends_at: endsAt, proposed_location_type: locationType,
     proposed_location_details: locationDetails, tutor_note: note,
   });
   res.json({ request: loadRequest(request.id) } satisfies TutoringRequestResponse);
@@ -139,16 +159,36 @@ tutoringRequestsRouter.post('/:id/cancel', (req, res) => {
 tutoringRequestsRouter.post('/:id/confirm', (req, res) => {
   const request = asRole(req, 'student');
   requireStatus(request.status, ['accepted'], 'confirm');
-  const p = request.proposal;
-  if (!p || request.tutorId === null || !request.tutor) throw new HttpError(409, 'Request has no proposed meeting to confirm');
-  if (p.startsAt <= nowIso()) throw new HttpError(409, 'The proposed time has already passed; ask the tutor for a new proposal');
-  if (hasSessionConflict(request.studentId, p.startsAt, p.endsAt) || hasSessionConflict(request.tutor.id, p.startsAt, p.endsAt)) {
-    throw new HttpError(409, 'Someone involved now has another session at that time');
+  if (!request.proposal) throw new HttpError(409, 'Request has no proposed meeting to confirm');
+  if (request.requestedMeeting && request.tutorId !== null && !fitsTutorAvailability(
+    request.tutorId, request.proposal.startsAt, request.proposal.endsAt, request.proposal.locationType,
+  )) {
+    throw new HttpError(409, 'The proposed time is no longer available. Withdraw this request and choose a new time.');
   }
+  res.status(201).json(bookSession(request, request.proposal) satisfies ConfirmTutoringRequestResponse);
+});
+
+tutoringRequestsRouter.post('/:id/accept', (req, res) => {
+  const request = asRole(req, 'tutor');
+  requireStatus(request.status, ['open'], 'accept');
+  const meeting = request.requestedMeeting;
+  if (!meeting || request.tutorId === null) throw new HttpError(409, 'This request has no exact meeting time. Propose a time instead.');
+  if (meeting.startsAt <= nowIso()) throw new HttpError(409, 'The requested time has passed. Propose another time.');
+  requireAvailability(request.tutorId, meeting);
+  res.status(201).json(bookSession(request, meeting) satisfies AcceptTutoringRequestResponse);
+});
+
+function bookSession(request: TutoringRequestDetail, p: MeetingDetails) {
+  if (request.tutorId === null || !request.tutor) throw new HttpError(409, 'Request no longer has a tutor');
+  if (p.startsAt <= nowIso()) throw new HttpError(409, 'The proposed time has already passed; ask the tutor for a new proposal');
   const db = getDb();
   let sessionId: number;
-  db.exec('BEGIN');
+  db.exec('BEGIN IMMEDIATE');
   try {
+    requireStatus(loadRequest(request.id).status, [request.status], 'book');
+    if (hasSessionConflict(request.studentId, p.startsAt, p.endsAt) || hasSessionConflict(request.tutor.id, p.startsAt, p.endsAt)) {
+      throw new HttpError(409, 'Someone involved now has another session at that time');
+    }
     const now = nowIso();
     sessionId = Number(
       db.prepare(
@@ -156,11 +196,14 @@ tutoringRequestsRouter.post('/:id/confirm', (req, res) => {
          VALUES (?,?,?,?,?,?,?,?,?,?)`,
       ).run(request.id, request.courseId, request.tutorId, request.studentId, p.startsAt, p.endsAt, p.locationType, p.locationDetails, now, now).lastInsertRowid,
     );
-    transition(request.id, 'confirmed');
+    transition(request.id, 'confirmed', {
+      proposed_starts_at: p.startsAt, proposed_ends_at: p.endsAt, proposed_location_type: p.locationType,
+      proposed_location_details: p.locationDetails,
+    });
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;
   }
-  res.status(201).json({ request: loadRequest(request.id), session: loadSession(sessionId) } satisfies ConfirmTutoringRequestResponse);
-});
+  return { request: loadRequest(request.id), session: loadSession(sessionId) };
+}
