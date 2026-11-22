@@ -51,7 +51,7 @@ export function Person({ id, showRole = false }: { id: number; showRole?: boolea
   if (!person) return 'Community member';
   return <span className="inline-flex flex-wrap items-center gap-2">
     <Link className="font-medium hover:text-brand-700 hover:underline" to={'/people/' + id}>{person.name}</Link>
-    {showRole && <AccountBadges role={person.role} />}
+    {showRole && <AccountBadges role={person.role} tutor={person.isTutor} />}
   </span>;
 }
 

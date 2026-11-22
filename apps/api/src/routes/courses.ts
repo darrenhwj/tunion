@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import type { GetCourseResponse, ListCoursesResponse, ApiError } from '@tunion/shared';
+import type { GetCourseResponse, ListCoursesResponse, ListCourseMembersResponse, SetEnrollmentResponse, EnrollmentStatus, ApiError } from '@tunion/shared';
 import { getDb } from '../db';
-import { toCourse } from '../mappers';
-import { HttpError, likePattern, parseId, queryString } from '../http';
+import { toCourse, toUser } from '../mappers';
+import { HttpError, bodyObject, likePattern, parseId, queryString, requireDemoUser } from '../http';
+import { USER_SELECT, USER_VISIBLE } from '../userQueries';
 
 export const coursesRouter = Router();
 
@@ -32,4 +33,23 @@ coursesRouter.get('/:id', (req, res) => {
   const row = getDb().prepare('SELECT * FROM courses WHERE id = ?').get(parseId(req.params.id, 'course id'));
   if (!row) return void res.status(404).json({ error: 'Course not found' } satisfies ApiError);
   res.json({ course: toCourse(row) } satisfies GetCourseResponse);
+});
+
+// Members come from the enrollments table. Hidden (legacy) accounts are not listed.
+coursesRouter.get('/:id/members', (req, res) => {
+  const id = parseId(req.params.id, 'course id');
+  const rows = getDb().prepare(`${USER_SELECT} WHERE ${USER_VISIBLE} AND u.id IN (SELECT user_id FROM enrollments WHERE course_id = ?) ORDER BY u.id`).all(id);
+  res.json({ members: rows.map(toUser) } satisfies ListCourseMembersResponse);
+});
+
+// The signed-in user (insecure demo auth) joins ('current') or leaves ('completed' keeps it as a past course). Never deletes rows.
+coursesRouter.put('/:id/enrollment', requireDemoUser, (req, res) => {
+  const id = parseId(req.params.id, 'course id');
+  const status = bodyObject(req.body).status;
+  if (status !== 'current' && status !== 'completed') throw new HttpError(400, "status must be 'current' or 'completed'");
+  const db = getDb();
+  if (!db.prepare('SELECT 1 FROM courses WHERE id = ? AND is_hidden = 0').get(id)) throw new HttpError(404, 'Course not found');
+  db.prepare('INSERT INTO enrollments (user_id, course_id, status) VALUES (?,?,?) ON CONFLICT(user_id, course_id) DO UPDATE SET status = excluded.status')
+    .run(req.demoUser!.id, id, status);
+  res.json({ enrollment: { courseId: id, status: status as EnrollmentStatus } } satisfies SetEnrollmentResponse);
 });

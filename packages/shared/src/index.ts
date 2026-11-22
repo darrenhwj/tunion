@@ -14,6 +14,8 @@ export interface User {
   major: string | null; // null = not specified
   year: number | null; // null = not specified
   bio: string;
+  /** True while the account has an active tutor badge (tutors.is_active). Independent of `role`. */
+  isTutor: boolean;
   createdAt: ISODateString;
 }
 
@@ -129,6 +131,16 @@ export interface HealthResponse {
 export type ListUsersResponse = { users: User[] };
 /** GET /api/users/:id */
 export type GetUserResponse = { user: User };
+
+/** 'current' = taking it now, 'completed' = previously taken. Stored in the database (enrollments). */
+export type EnrollmentStatus = 'current' | 'completed';
+export interface Enrollment { courseId: ID; status: EnrollmentStatus }
+/** GET /api/users/:id/enrollments */
+export type ListEnrollmentsResponse = { enrollments: Enrollment[] };
+/** GET /api/courses/:id/members (current and past students; hidden accounts excluded) */
+export type ListCourseMembersResponse = { members: User[] };
+/** PUT /api/courses/:id/enrollment, body { status }. Signed-in user only. */
+export type SetEnrollmentResponse = { enrollment: Enrollment };
 
 /** GET /api/courses */
 export type ListCoursesResponse = { courses: Course[] };

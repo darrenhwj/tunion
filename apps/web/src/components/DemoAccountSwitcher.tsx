@@ -30,7 +30,7 @@ export default function DemoAccountSwitcher() {
       {error && <p role="alert">{error}</p>}
       <div className="grid gap-2">{accounts.map((account) => (
         <Button key={account.id} variant="secondary" className="flex-wrap justify-between gap-2" onClick={() => { switchTo(account.id); closeSelector(); }}>
-          <span>{account.name}</span><AccountBadges role={account.role} />
+          <span>{account.name}</span><AccountBadges role={account.role} tutor={account.isTutor} />
         </Button>
       ))}</div>
       {current && <Button variant="ghost" className="mt-3" onClick={() => { switchTo(null); closeSelector(); }}>Sign Out</Button>}

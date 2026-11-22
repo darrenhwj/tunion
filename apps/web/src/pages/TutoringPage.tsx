@@ -30,7 +30,7 @@ export function TutoringPage() {
 
   return <>
     <PageHeading title="Tutoring" description="Find a peer tutor by course, check their weekly hours, and request a session.">
-      {current?.role === 'tutor' && <Link to="/tutoring/availability" className={textLink}>Manage my availability →</Link>}
+      {current?.isTutor && <Link to="/tutoring/availability" className={textLink}>Manage my availability →</Link>}
     </PageHeading>
     <div className="max-w-md"><Field label="Course"><CourseSelect all value={course} onChange={setCourse} /></Field></div>
     {query.loading || query.error ? <Empty>{query.error ?? 'Loading tutors…'}</Empty> : available.length

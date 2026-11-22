@@ -4,6 +4,7 @@ import { DEMO_USER_HEADER } from '@tunion/shared';
 import type { User } from '@tunion/shared';
 import { getDb } from './db';
 import { toUser } from './mappers';
+import { USER_SELECT } from './userQueries';
 
 /** Error carrying an HTTP status; converted to `{ error }` by the error handler. */
 export class HttpError extends Error {
@@ -23,7 +24,7 @@ declare module 'express-serve-static-core' {
 export const optionalDemoUser: RequestHandler = (req, _res, next) => {
   const id = Number(req.header(DEMO_USER_HEADER));
   if (Number.isInteger(id) && id > 0) {
-    const row = getDb().prepare('SELECT * FROM users WHERE id = ?').get(id);
+    const row = getDb().prepare(`${USER_SELECT} WHERE u.id = ?`).get(id);
     if (row) req.demoUser = toUser(row);
   }
   next();

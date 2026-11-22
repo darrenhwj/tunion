@@ -1,5 +1,5 @@
 import AccountBadges from '../components/AccountBadges';
-import type { GetUserResponse, ListUsersResponse } from '@tunion/shared';
+import type { GetUserResponse, ListEnrollmentsResponse, ListUsersResponse } from '@tunion/shared';
 import { Link, useParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import Card from '../components/Card';
@@ -21,10 +21,14 @@ export function PeoplePage() {
   return <>
     <PageHeading title="People" description="Meet students and peer tutors in the community." />
     {loading || error ? <Empty>{loading ? 'Loading people…' : error}</Empty> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{data?.users.map((account) => <Card key={account.id} className="space-y-2">
-      <AccountBadges role={account.role} /><h2 className="font-bold"><Link className="hover:text-brand-700 hover:underline" to={'/people/' + account.id}>{account.name}</Link></h2>
+      <AccountBadges role={account.role} tutor={account.isTutor} /><h2 className="font-bold"><Link className="hover:text-brand-700 hover:underline" to={'/people/' + account.id}>{account.name}</Link></h2>
       <p className="text-sm text-ink-700">{account.bio}</p>
     </Card>)}</div>}
   </>;
+}
+
+function fetchEnrollments(id: string, signal: AbortSignal) {
+  return api<ListEnrollmentsResponse>('/users/' + encodeURIComponent(id) + '/enrollments', { signal });
 }
 
 function fetchUser(id: string, signal: AbortSignal) {
@@ -36,15 +40,15 @@ export function ProfilePage() {
   const profile = useApiQuery(userId, fetchUser);
   const contributions = useApiQuery(userId, fetchContributions);
   const resourceQuery = useApiQuery(userId, fetchAuthorResources);
-  const { courses, data } = useCommunity();
+  const enrollmentQuery = useApiQuery(userId, fetchEnrollments);
+  const { courses } = useCommunity();
   const person = profile.data?.user;
   if (!person) return <Empty>{profile.error ?? 'Loading profile…'}</Empty>;
 
   const { discussions = [], replies = [], posts } = contributions.data ?? {};
   const resources = resourceQuery.data ?? [];
   const ids = new Set([
-    ...(data.enrollments[person.id] ?? []),
-    ...(data.pastCourses?.[person.id] ?? []),
+    ...(enrollmentQuery.data?.enrollments ?? []).map((item) => item.courseId),
     ...discussions.map((item) => item.courseId),
     ...resources.map((item) => item.courseId),
     ...replies.flatMap((reply) => posts?.get(reply.discussionId)?.courseId ?? []),
@@ -59,7 +63,7 @@ export function ProfilePage() {
 
   return <>
     <Link to="/people" className={textLink}>← Community members</Link>
-    <PageHeading title={person.name} description={[person.major, person.year ? 'Year ' + person.year : null].filter(Boolean).join(' · ') || 'Major and year not specified'}><AccountBadges role={person.role} /></PageHeading>
+    <PageHeading title={person.name} description={[person.major, person.year ? 'Year ' + person.year : null].filter(Boolean).join(' · ') || 'Major and year not specified'}><AccountBadges role={person.role} tutor={person.isTutor} /></PageHeading>
     <Card className="space-y-3"><p>{person.bio || 'No bio yet.'}</p><h2 className="font-bold">Badges</h2><div className="flex flex-wrap gap-2">{badges.length ? badges.map((badge) => <Badge key={badge} tone="brand">{badge}</Badge>) : <p className="text-sm text-ink-500">No badges earned yet.</p>}</div></Card>
     <section className="space-y-3"><h2 className="text-xl font-bold">Course history</h2>
       {history.length ? <div className="grid gap-3 sm:grid-cols-2">{history.map((course) => <Card key={course.id}><Link className={textLink} to={'/courses/' + course.id}>{course.code} · {course.title}</Link></Card>)}</div> : <Empty>No course activity yet.</Empty>}
