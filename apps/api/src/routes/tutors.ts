@@ -15,6 +15,9 @@ const TUTOR_SELECT = `SELECT t.*, u.name AS user_name, u.role AS user_role FROM 
 const SLOT_ORDER = 'ORDER BY day_of_week, start_time, id';
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** Directory visibility: badge not revoked and the account not hidden (admins are never hidden). Direct lookups by id ignore this. */
+const LISTED = `t.is_active = 1 AND (u.is_hidden = 0 OR u.role = 'admin')`;
+
 function profiles(where: string, params: Record<string, number>) {
   const db = getDb();
   return db.prepare(`${TUTOR_SELECT} ${where} ORDER BY t.id`).all(params).map((row) => {
@@ -106,8 +109,8 @@ tutorsRouter.delete('/me/availability/:slotId', requireDemoUser, (req, res) => {
 tutorsRouter.get('/', (req, res) => {
   const courseId = req.query.courseId === undefined ? undefined : parseId(req.query.courseId, 'courseId');
   const list = courseId === undefined
-    ? profiles('', {})
-    : profiles('WHERE t.id IN (SELECT tutor_id FROM tutor_courses WHERE course_id = :courseId)', { courseId });
+    ? profiles(`WHERE ${LISTED}`, {})
+    : profiles(`WHERE ${LISTED} AND t.id IN (SELECT tutor_id FROM tutor_courses WHERE course_id = :courseId)`, { courseId });
   res.json({ tutors: list } satisfies ListTutorsResponse);
 });
 

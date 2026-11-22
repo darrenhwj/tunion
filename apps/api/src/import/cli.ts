@@ -8,7 +8,8 @@ const USAGE = `Usage: npm run import:csv -w @tunion/api -- --courses <courses.cs
 
   (default)        Dry run: validate and preview. The database is NOT modified.
   --apply          Back up the database, then import in one transaction.
-  --hide-legacy    Also hide demo users/courses that are not in the CSVs (reversible; nothing is deleted).
+  --hide-legacy    Also hide demo users/courses that are not in the CSVs from the account selector, course directory and
+                   tutor directory (reversible; nothing is deleted).
   --unhide-all     Instead of importing, un-hide every hidden user and course (use with --apply to write).
   --db <path>      Database file (default: DATABASE_PATH or apps/api/data/tunion.db).
   --json           Print the report as JSON.`;
@@ -37,10 +38,20 @@ function print(r: ImportReport, apply: boolean, hideLegacy: boolean): void {
   const out: string[] = [];
   out.push('Courses', list('added', r.courses.added), list('updated', r.courses.updated), `  unchanged: ${r.courses.unchanged.length}`);
   out.push('Users (all imported as Student)', list('added', r.users.added), list('updated', r.users.updated), `  unchanged: ${r.users.unchanged.length}`);
-  out.push('Tutor badges', list('newly granted', r.tutorBadges.added));
-  if (r.tutorBadges.existingNotRemoved.length) out.push(list('badge=No but already a tutor (left as is)', r.tutorBadges.existingNotRemoved));
+  const tb = r.tutorBadges;
+  out.push('Tutor badges (explicit Yes/No; tutor rows and tutoring history are never deleted)', list('newly granted', tb.granted), list('re-activated', tb.reactivated));
+  out.push(`  REVOKED (${tb.revoked.length})${tb.revoked.length ? ' - hidden from the directory; history kept; REVIEW the items below:' : ''}`);
+  for (const x of tb.revoked) {
+    out.push(`    - ${x.email}: ${x.openRequests.length} outstanding request(s), ${x.scheduledSessions.filter((s) => s.upcoming).length} upcoming session(s), ${x.scheduledSessions.filter((s) => !s.upcoming).length} past session(s) still marked scheduled`);
+    x.openRequests.forEach((q) => out.push(`        request #${q.id} [${q.status}] ${q.student} - ${q.course}`));
+    x.scheduledSessions.forEach((q) => out.push(`        session #${q.id} ${q.upcoming ? 'UPCOMING' : 'past, still scheduled'} ${q.startsAt} ${q.student} - ${q.course}`));
+  }
+  out.push('Tutoring subjects (explicit list only)', list('added', r.tutorSubjects.added), list('removed', r.tutorSubjects.removed));
   const e = r.enrollments;
-  out.push('Enrollments', `  added: ${e.added}, status changed: ${e.changed}, unchanged: ${e.unchanged}, existing but not in CSV (kept): ${e.keptNotInCsv}`);
+  out.push('Enrollments', `  added: ${e.added}, status changed: ${e.changed}, unchanged: ${e.unchanged}`);
+  out.push(`  REMOVED (${e.removed.length})${e.removed.length ? ' - enrollment links only; posts, resources and tutoring history are untouched:' : ''}`, ...e.removed.map((x) => `    - ${x.name} <${x.user}>: ${x.course} ${x.courseTitle} (was ${x.was})`));
+  if (e.keptNoCourseData.length) out.push(list('no course data in CSV, enrollments kept', e.keptNoCourseData));
+  if (r.needsVerification.length) out.push('NEEDS VERIFICATION', ...r.needsVerification.map((x) => `  ! ${x}`));
   out.push('Legacy records not in the CSVs (never deleted)', legacy('users', r.legacyUsers), legacy('courses', r.legacyCourses));
   if (!hideLegacy && (r.legacyUsers.length || r.legacyCourses.length)) {
     out.push('  To hide them from the account selector and course directory, re-run with --hide-legacy (undo: --unhide-all).');
@@ -76,7 +87,10 @@ function main(): number {
   const hideLegacy = args['--hide-legacy'] === true;
   const { value: report, backupPath } = withTarget(dbPath, apply, (db) => runImport(db, input, { apply, hideLegacy }));
   if (json) console.log(JSON.stringify(report, null, 2));
-  else if (report.errors.length) console.error(`Validation failed - nothing was written:\n${report.errors.map((x) => `  - ${x}`).join('\n')}`);
+  else if (report.errors.length) {
+    console.error(`Validation failed - nothing was written:\n${report.errors.map((x) => `  - ${x}`).join('\n')}`);
+    if (report.needsVerification.length) console.error(`\nNEEDS VERIFICATION\n${report.needsVerification.map((x) => `  ! ${x}`).join('\n')}`);
+  }
   else print(report, apply, hideLegacy);
   if (report.errors.length) return 1;
   if (backupPath) console.log(`Backup: ${backupPath}\nRollback: stop the app, then copy that file over ${dbPath} and delete ${dbPath}-wal / ${dbPath}-shm if present.`);

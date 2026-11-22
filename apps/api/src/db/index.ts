@@ -55,10 +55,11 @@ export function migrate(database: DatabaseSync): void {
   ] as const) {
     if (!resourceCols.includes(col)) database.exec(`ALTER TABLE resources ADD COLUMN ${col} ${ddl}`);
   }
-  // Databases created before CSV import lack these columns; add them in place (existing rows: visible, 'current').
+  // Databases created before CSV import lack these columns; add them in place (existing rows: visible, 'current', active tutor).
   for (const [table, col, ddl] of [
     ['users', 'is_hidden', 'INTEGER NOT NULL DEFAULT 0'],
     ['courses', 'is_hidden', 'INTEGER NOT NULL DEFAULT 0'],
+    ['tutors', 'is_active', 'INTEGER NOT NULL DEFAULT 1'],
     ['enrollments', 'status', "TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current','completed'))"],
   ] as const) {
     const names = (database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);

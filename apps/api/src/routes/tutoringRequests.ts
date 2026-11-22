@@ -45,8 +45,11 @@ tutoringRequestsRouter.post('/', (req, res) => {
   const slotId = body.slotId == null ? null : parseId(body.slotId, 'slotId');
   const db = getDb();
   if (!db.prepare('SELECT 1 FROM courses WHERE id = ?').get(courseId)) throw new HttpError(404, 'Course not found');
-  const tutor = db.prepare('SELECT user_id FROM tutors WHERE id = ?').get(tutorId) as { user_id: number } | undefined;
+  const tutor = db.prepare('SELECT t.user_id, t.is_active, u.is_hidden, u.role FROM tutors t JOIN users u ON u.id = t.user_id WHERE t.id = ?').get(tutorId) as
+    | { user_id: number; is_active: number; is_hidden: number; role: string }
+    | undefined;
   if (!tutor) throw new HttpError(404, 'Tutor not found');
+  if (tutor.is_active !== 1 || (tutor.is_hidden === 1 && tutor.role !== 'admin')) throw new HttpError(400, 'This tutor is no longer available');
   if (tutor.user_id === user.id) throw new HttpError(400, 'You cannot request tutoring from yourself');
   if (!db.prepare('SELECT 1 FROM tutor_courses WHERE tutor_id = ? AND course_id = ?').get(tutorId, courseId)) {
     throw new HttpError(400, 'This tutor does not tutor that course');

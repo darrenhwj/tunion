@@ -14,8 +14,8 @@ export function toUser(r: Row): User {
     name: r.name as string,
     email: r.email as string,
     role: r.role as UserRole,
-    major: r.major as string,
-    year: r.year as number,
+    major: (r.major as string) || null,
+    year: (r.year as number) || null,
     bio: r.bio as string,
     createdAt: r.created_at as string,
   };

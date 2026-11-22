@@ -6,7 +6,7 @@ import { toUser } from '../mappers';
 export const usersRouter = Router();
 
 usersRouter.get('/', (_req, res) => {
-  const rows = getDb().prepare('SELECT * FROM users ORDER BY id').all();
+  const rows = getDb().prepare("SELECT * FROM users WHERE is_hidden = 0 OR role = 'admin' ORDER BY id").all();
   res.json({ users: rows.map(toUser) } satisfies ListUsersResponse);
 });
 
