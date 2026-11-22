@@ -8,11 +8,11 @@ import { HttpError, parseId } from './http';
 export interface VoteTarget {
   table: 'discussion_votes' | 'reply_votes' | 'resource_votes';
   col: 'discussion_id' | 'reply_id' | 'resource_id';
-  owner: string; // SELECT author_id ... WHERE id = ?
+  owner: string; // SELECT author_id ... WHERE id = ? (no row = 404; soft-deleted discussions count as missing)
 }
 
-export const DISCUSSION_VOTE: VoteTarget = { table: 'discussion_votes', col: 'discussion_id', owner: 'SELECT author_id FROM discussions WHERE id = ?' };
-export const REPLY_VOTE: VoteTarget = { table: 'reply_votes', col: 'reply_id', owner: 'SELECT author_id FROM replies WHERE id = ?' };
+export const DISCUSSION_VOTE: VoteTarget = { table: 'discussion_votes', col: 'discussion_id', owner: 'SELECT author_id FROM discussions WHERE id = ? AND deleted_at IS NULL' };
+export const REPLY_VOTE: VoteTarget = { table: 'reply_votes', col: 'reply_id', owner: 'SELECT r.author_id FROM replies r JOIN discussions d ON d.id = r.discussion_id WHERE r.id = ? AND d.deleted_at IS NULL' };
 
 function voteCount(t: VoteTarget, id: number): number {
   return (getDb().prepare(`SELECT COUNT(*) AS n FROM ${t.table} WHERE ${t.col} = ?`).get(id) as { n: number }).n;

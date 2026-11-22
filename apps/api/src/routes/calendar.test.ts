@@ -67,6 +67,10 @@ describe('calendar endpoints', () => {
     });
 
     it('reflects newly confirmed sessions', async () => {
+      const mine = await api.call('GET', '/api/tutoring-requests?role=student', { user: 1 });
+      for (const q of mine.json.requests as { id: number; tutorId: number; courseId: number; status: string }[]) {
+        if (q.tutorId === 1 && q.courseId === 5 && (q.status === 'open' || q.status === 'accepted')) await api.call('POST', `/api/tutoring-requests/${q.id}/cancel`, { user: 1 });
+      }
       const req = await api.call('POST', '/api/tutoring-requests', { user: 1, body: { courseId: 5, tutorId: 1, topic: 'Calendar check' } });
       const id = req.json.request.id;
       await api.call('POST', `/api/tutoring-requests/${id}/approve`, {

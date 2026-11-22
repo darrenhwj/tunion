@@ -1,11 +1,12 @@
 import AccountBadges from '../components/AccountBadges';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { LOCATION_TYPE_LABELS, type AvailabilitySlot, type CreateAvailabilitySlotRequest, type CreateAvailabilitySlotResponse, type DayOfWeek, type DeleteResponse, type ListAvailabilityResponse, type LocationType, type UpdateAvailabilitySlotResponse } from '@tunion/shared';
+import { LOCATION_TYPE_LABELS, type GetMyTutorResponse, type SetTutorSubjectsRequest, type SetTutorSubjectsResponse, type AvailabilitySlot, type CreateAvailabilitySlotRequest, type CreateAvailabilitySlotResponse, type DayOfWeek, type DeleteResponse, type ListAvailabilityResponse, type LocationType, type UpdateAvailabilitySlotResponse } from '@tunion/shared';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import { Empty, Field, PageHeading, field, textLink } from '../components/CommunityUI';
 import { LocationField } from '../components/ScheduleFields';
+import { useCommunity } from '../demo/community';
 import { api, postJson } from '../lib/api';
 import { useDemoAuth } from '../lib/demoAuth';
 import { weekdays } from '../lib/schedule';
@@ -20,8 +21,9 @@ export default function AvailabilityPage() {
   const { current } = useDemoAuth();
   return <>
     <Link to="/tutoring" className={textLink}>← Tutor directory</Link>
-    <PageHeading title="My availability" description="Manage your recurring weekly tutoring hours in Japan Standard Time (JST).">{current && <AccountBadges role={current.role} />}</PageHeading>
-    {current ? <AvailabilityEditor key={current.id} /> : <Empty>Select a tutor account to manage availability.</Empty>}
+    <PageHeading title="My tutor settings" description="Choose the courses you tutor and manage your recurring weekly hours in Japan Standard Time (JST). Students can only book you once both are set.">{current && <AccountBadges role={current.role} />}</PageHeading>
+    {current?.isTutor ? <><SubjectsEditor key={'s' + current.id} /><AvailabilityEditor key={current.id} /></>
+      : <Empty>{current ? 'Only accounts with a Tutor badge have tutor settings. Ask an admin to grant the badge.' : 'Select a tutor account to manage availability.'}</Empty>}
   </>;
 }
 
@@ -97,4 +99,55 @@ function AvailabilityEditor() {
       </div>
     </Card>) : <Empty>No weekly slots yet.</Empty>}
   </div>;
+}
+
+function loadMyTutor(_key: string, signal: AbortSignal) {
+  return api<GetMyTutorResponse>('/tutors/me', { signal });
+}
+
+/** Subjects are chosen explicitly here; they are never copied from the courses a tutor has taken. */
+function SubjectsEditor() {
+  const { courses } = useCommunity();
+  const query = useApiQuery('', loadMyTutor);
+  const [selected, setSelected] = useState<number[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+  const savedIds = query.data?.tutor.courseIds;
+  useEffect(() => { if (savedIds) setSelected(savedIds); }, [savedIds]);
+  if (!query.data || !selected) return <Empty>{query.error ?? 'Loading subjects…'}</Empty>;
+  const chosen = selected;
+
+  async function save() {
+    setBusy(true);
+    setError('');
+    setSaved(false);
+    try {
+      await api<SetTutorSubjectsResponse>('/tutors/me/subjects', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ courseIds: chosen } satisfies SetTutorSubjectsRequest),
+      });
+      setSaved(true);
+      query.refresh();
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const toggle = (id: number) => { setSaved(false); setSelected((previous) => (previous ?? []).includes(id) ? (previous ?? []).filter((item) => item !== id) : [...(previous ?? []), id]); };
+  return <Card className="space-y-3">
+    <h2 className="font-bold">Subjects I tutor</h2>
+    {!chosen.length && <p className="text-sm text-ink-500">No subjects chosen yet, so students cannot book you.</p>}
+    <fieldset disabled={busy} className="grid gap-2 sm:grid-cols-2">
+      <legend className="sr-only">Courses you tutor</legend>
+      {courses.map((course) => <label key={course.id} className="flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-1" checked={chosen.includes(course.id)} onChange={() => toggle(course.id)} />
+        <span>{course.code} · {course.title}</span>
+      </label>)}
+    </fieldset>
+    <Button disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save subjects'}</Button>
+    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {saved && <p role="status" className="text-sm text-brand-700">Subjects saved.</p>}
+  </Card>;
 }

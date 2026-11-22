@@ -13,7 +13,7 @@ const users = [
   [3, 'Marcus Chen', 'marcus.chen@demo.tunion.edu', 'tutor', 'Computer Science', 4, 'Senior tutor for algorithms and systems. Ex-TA for CS201.'],
   [4, 'Sofia Alvarez', 'sofia.alvarez@demo.tunion.edu', 'tutor', 'Computer Science', 3, 'Junior tutor, databases and web development.'],
   [5, 'Jordan Okafor', 'jordan.okafor@demo.tunion.edu', 'ta', 'Computer Science', 4, 'Teaching assistant for intro programming.'],
-  [6, 'Dana Whitfield', 'dana.whitfield@demo.tunion.edu', 'admin', 'Computer Science', 4, 'Community moderator for the CS department.'],
+  [6, 'Hani Karam', 'dana.whitfield@demo.tunion.edu', 'admin', 'Computer Science', 4, 'Community moderator for the CS department.'],
 ] as const;
 
 const courses = [

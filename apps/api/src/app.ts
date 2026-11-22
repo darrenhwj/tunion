@@ -13,6 +13,7 @@ import { studyGroupsRouter, studyGroupSessionsRouter } from './routes/studyGroup
 import { calendarRouter } from './routes/calendar';
 import { resourcesRouter } from './routes/resources';
 import { oneTimeSessionsRouter } from './routes/oneTimeSessions';
+import { adminRouter } from './routes/admin';
 import { errorHandler } from './http';
 
 export function createApp() {
@@ -50,6 +51,7 @@ export function createApp() {
   app.use('/api/resources', resourcesRouter);
   app.use('/api/one-time-sessions', oneTimeSessionsRouter);
   app.use('/api/calendar', calendarRouter);
+  app.use('/api/admin', adminRouter);
   app.use('/api', demoAuthRouter);
 
   app.use('/api', (_req, res) => {

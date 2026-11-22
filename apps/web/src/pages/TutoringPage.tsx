@@ -1,6 +1,6 @@
 import AccountBadges from '../components/AccountBadges';
-import { useState, type FormEvent } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { LOCATION_TYPE_LABELS, type CreateTutoringRequestRequest, type CreateTutoringRequestResponse, type GetTutorResponse, type ListTutorsResponse, type TutorProfile } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
@@ -30,7 +30,7 @@ export function TutoringPage() {
 
   return <>
     <PageHeading title="Tutoring" description="Find a peer tutor by course, check their weekly hours, and request a session.">
-      {current?.isTutor && <Link to="/tutoring/availability" className={textLink}>Manage my availability →</Link>}
+      {current?.isTutor && <Link to="/tutoring/availability" className={textLink}>Manage my subjects and availability →</Link>}
     </PageHeading>
     <div className="max-w-md"><Field label="Course"><CourseSelect all value={course} onChange={setCourse} /></Field></div>
     {query.loading || query.error ? <Empty>{query.error ?? 'Loading tutors…'}</Empty> : available.length
@@ -67,7 +67,7 @@ export function TutorPage() {
     <Link to="/tutoring" className={textLink}>← Tutor directory</Link>
     <PageHeading title={tutor.user.name} description={tutor.headline}>
       <AccountBadges role={tutor.user.role} tutor />
-      {ownProfile && <Link to="/tutoring/availability" className={textLink}>Manage my availability →</Link>}
+      {ownProfile && <Link to="/tutoring/availability" className={textLink}>Manage my subjects and availability →</Link>}
     </PageHeading>
     <Card className="space-y-3">
       {user?.bio && <p className="text-ink-700">{user.bio}</p>}
@@ -78,10 +78,25 @@ export function TutorPage() {
       <h2 className="text-xl font-bold">Weekly availability</h2>
       {tutor.slots.length ? <ul className="divide-y divide-line">{tutor.slots.map((slot) => <li key={slot.id} className="py-2 text-sm">{slotLabel(slot)}</li>)}</ul> : <p className="text-sm text-ink-500">No weekly slots listed.</p>}
     </Card>
-    {!ownProfile && <section className="space-y-3"><h2 className="text-xl font-bold">Request help</h2>
-      <RequireAccount><RequestForm key={tutor.id + ':' + current?.id} tutor={tutor} /></RequireAccount>
-    </section>}
+    <BookingSection tutor={tutor} ownProfile={ownProfile} />
   </>;
+}
+
+function BookingSection({ tutor, ownProfile }: { tutor: TutorProfile; ownProfile: boolean }) {
+  const { current } = useDemoAuth();
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash === '#book') document.getElementById('book')?.scrollIntoView();
+  }, [hash, tutor.id]);
+  // The API also rejects self-booking and tutors without subjects or availability; this explains it instead of showing a doomed form.
+  const unavailable = ownProfile ? 'You cannot book a session with yourself.'
+    : !tutor.courseIds.length ? tutor.user.name + ' has not chosen any tutoring subjects yet, so sessions cannot be requested.'
+    : !tutor.slots.length ? tutor.user.name + ' has not set any weekly availability yet, so sessions cannot be requested.'
+    : '';
+  return <section id="book" className="space-y-3"><h2 className="text-xl font-bold">Book a tutoring session</h2>
+    {unavailable ? <Empty>{unavailable}{ownProfile && ' Manage your subjects and availability from your tutor settings.'}</Empty>
+      : <RequireAccount><RequestForm key={tutor.id + ':' + current?.id} tutor={tutor} /></RequireAccount>}
+  </section>;
 }
 
 function RequestForm({ tutor }: { tutor: TutorProfile }) {
@@ -122,11 +137,11 @@ function RequestForm({ tutor }: { tutor: TutorProfile }) {
     <Field label="Course"><select key={courses.length} name="courseId" className={field} defaultValue={preselected} required>
       <option value="">Choose a course</option>{courses.filter((course) => tutor.courseIds.includes(course.id)).map((course) => <option value={course.id} key={course.id}>{course.code} · {course.title}</option>)}
     </select></Field>
-    {tutor.slots.length > 0 && <Field label="Preferred weekly slot"><select name="slotId" className={field}><option value="">No preference</option>{tutor.slots.map((slot) => <option key={slot.id} value={slot.id}>{slotLabel(slot)}</option>)}</select></Field>}
+    {tutor.slots.length > 0 && <Field label="Preferred weekly slot (day, time and format)"><select name="slotId" className={field}><option value="">No preference</option>{tutor.slots.map((slot) => <option key={slot.id} value={slot.id}>{slotLabel(slot)}</option>)}</select></Field>}
     <Field label="Topic"><input name="topic" className={field} required minLength={3} maxLength={200} /></Field>
     <Field label="What are you working on?"><textarea name="details" className={field} maxLength={5000} rows={4} /></Field>
-    <Button type="submit">{pending ? 'Sending…' : 'Send help request'}</Button>
+    <Button type="submit">{pending ? 'Sending…' : 'Send booking request'}</Button>
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-    {submitted && <p role="status" className="text-sm text-brand-700">Help request sent. <Link className={textLink} to="/tutoring#requests">View my requests</Link></p>}
+    {submitted && <p role="status" className="text-sm text-brand-700">Request sent to {tutor.user.name}. They can approve or reject it and propose a time. <Link className={textLink} to="/tutoring#requests">View my requests</Link></p>}
   </fieldset></form></Card>;
 }

@@ -6,6 +6,7 @@ import { Link, useParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
+import ProfileActions from '../components/ProfileActions';
 import { Empty, Field, PageHeading, field, textLink } from '../components/CommunityUI';
 import { useCommunity } from '../demo/community';
 import { api } from '../lib/api';
@@ -69,6 +70,7 @@ export function ProfilePage() {
   return <>
     <Link to="/people" className={textLink}>← Community members</Link>
     <PageHeading title={person.name} description={[person.major, person.year ? 'Year ' + person.year : null].filter(Boolean).join(' · ') || 'Major and year not specified'}><AccountBadges role={person.role} tutor={person.isTutor} /></PageHeading>
+    <ProfileActions person={person} onChanged={profile.refresh} />
     <Card className="space-y-3">
       <ProfileBio key={person.id} person={person} canEdit={current?.id === person.id} onSaved={profile.refresh} />
       <h2 className="font-bold">Badges</h2>

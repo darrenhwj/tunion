@@ -38,6 +38,15 @@ export const requireDemoUser: RequestHandler = (req, res, next) => {
   });
 };
 
+/** Requires a demo user with role 'admin' (checked on the server from the database, not from anything the client sends). */
+export const requireAdmin: RequestHandler = (req, res, next) => {
+  requireDemoUser(req, res, (err) => {
+    if (err) return next(err);
+    if (req.demoUser!.role !== 'admin') return next(new HttpError(403, 'Admin access required'));
+    next();
+  });
+};
+
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof HttpError) {
     res.status(err.status).json({ error: err.message } satisfies ApiError);

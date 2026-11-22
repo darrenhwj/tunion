@@ -60,11 +60,14 @@ export function migrate(database: DatabaseSync): void {
     ['users', 'is_hidden', 'INTEGER NOT NULL DEFAULT 0'],
     ['courses', 'is_hidden', 'INTEGER NOT NULL DEFAULT 0'],
     ['tutors', 'is_active', 'INTEGER NOT NULL DEFAULT 1'],
+    ['discussions', 'deleted_at', 'TEXT'],
+    ['discussions', 'deleted_by_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL'],
     ['enrollments', 'status', "TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current','completed'))"],
   ] as const) {
     const names = (database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
     if (!names.includes(col)) database.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`);
   }
+  renameLegacyAdmin(database);
   if (legacyRequests) {
     database.exec('BEGIN');
     try {
@@ -78,6 +81,15 @@ export function migrate(database: DatabaseSync): void {
     }
   }
   database.exec('PRAGMA foreign_keys = ON;');
+}
+
+/**
+ * The demo admin was originally seeded as "Dana Whitfield" and is now "Hani Karam". Targeted and idempotent: only
+ * the account(s) with role 'admin' that still carry the old name are touched (id, email, role and all data are kept),
+ * and once renamed this matches nothing.
+ */
+export function renameLegacyAdmin(database: DatabaseSync): void {
+  database.prepare("UPDATE users SET name = 'Hani Karam' WHERE role = 'admin' AND name = 'Dana Whitfield'").run();
 }
 
 export function closeDb(): void {
