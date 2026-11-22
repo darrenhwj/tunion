@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, Outlet, useParams } from 'react-router-dom';
-import type { Course, GetCourseResponse, ListCoursesResponse } from '@tunion/shared';
+import type { Course, GetCourseResponse, ListCourseMembersResponse, ListCoursesResponse } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
@@ -59,37 +59,33 @@ export function CoursesPage() {
 
 export function CoursePage() {
   const { courseId = '' } = useParams();
-  const { data, update } = useCommunity();
+  const { myCourses, setEnrollment } = useCommunity();
   const { current } = useDemoAuth();
+  const [actionError, setActionError] = useState('');
   const query = useApiQuery(courseId, fetchCourse);
   const course = query.data?.course;
   if (!course) return <Empty>{query.error ?? 'Loading course…'}</Empty>;
   const base = '/courses/' + course.id;
-  const enrolled = !!current && (data.enrollments[current.id] ?? []).includes(course.id);
+  const enrolled = !!current && myCourses.current.includes(course.id);
   return <>
     <Link to="/courses" className="text-sm font-semibold text-brand-700 hover:underline">← Course directory</Link>
     <PageHeading label={course.code} title={course.title} description={course.description}>
-      {current && <Button variant={enrolled ? 'secondary' : 'primary'} onClick={() => update((previous) => {
-        const ids = previous.enrollments[current.id] ?? [];
-        if (ids.includes(course.id)) return {
-          ...previous,
-          enrollments: { ...previous.enrollments, [current.id]: ids.filter((id) => id !== course.id) },
-          pastCourses: {
-            ...previous.pastCourses,
-            [current.id]: Array.from(new Set([...(previous.pastCourses?.[current.id] ?? []), course.id])),
-          },
-        };
-        return { ...previous, enrollments: { ...previous.enrollments, [current.id]: [...ids, course.id] } };
-      })}>{enrolled ? 'Leave course' : 'Join course'}</Button>}
+      {current && <Button variant={enrolled ? 'secondary' : 'primary'} onClick={() => setEnrollment(course.id, enrolled ? 'completed' : 'current').then(() => setActionError(''), (e: Error) => setActionError(e.message))}>{enrolled ? 'Leave course' : 'Join course'}</Button>}
     </PageHeading>
+    {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
     <Tabs label="Course sections" links={[{ to: base, label: 'Discussions' }, { to: base + '/resources', label: 'Resources' }, { to: base + '/people', label: 'People' }]} />
     <Outlet context={course} />
   </>;
 }
 
+function fetchMembers(id: string, signal: AbortSignal) {
+  return api<ListCourseMembersResponse>('/courses/' + encodeURIComponent(id) + '/members', { signal });
+}
+
 export function CoursePeople() {
-  const { courseId } = useParams();
-  const { data } = useCommunity();
-  const people = Object.entries(data.enrollments).filter(([, ids]) => ids.includes(Number(courseId)));
-  return people.length ? <div className="grid gap-3 sm:grid-cols-2">{people.map(([id]) => <Card key={id}><Person id={Number(id)} showRole /></Card>)}</div> : <Empty>No members have joined this course yet.</Empty>;
+  const { courseId = '' } = useParams();
+  const { data, loading, error } = useApiQuery(courseId, fetchMembers);
+  if (loading || error) return <Empty>{error ?? 'Loading members…'}</Empty>;
+  const people = data?.members ?? [];
+  return people.length ? <div className="grid gap-3 sm:grid-cols-2">{people.map((person) => <Card key={person.id}><Person id={person.id} showRole /></Card>)}</div> : <Empty>No members have joined this course yet.</Empty>;
 }

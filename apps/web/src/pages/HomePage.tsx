@@ -12,7 +12,7 @@ import collage from '../assets/campus-collage.jpg';
 export default function HomePage() {
   const { current, loading } = useDemoAuth();
   if (loading) return <Empty>Loading dashboard…</Empty>;
-  return current ? <StudentDashboard key={current.id} accountId={current.id} canTutor={current.role === 'tutor'} /> : <PublicLanding />;
+  return current ? <StudentDashboard key={current.id} accountId={current.id} canTutor={current.isTutor} /> : <PublicLanding />;
 }
 
 function PublicLanding() {
@@ -27,9 +27,9 @@ function PublicLanding() {
 }
 
 function StudentDashboard({ accountId, canTutor }: { accountId: number; canTutor: boolean }) {
-  const { courses, loading, courseError, data } = useCommunity();
-  const current = data.enrollments[accountId] ?? [];
-  const previous = data.pastCourses?.[accountId] ?? [];
+  const { courses, loading, courseError, myCourses } = useCommunity();
+  const current = myCourses.current;
+  const previous = myCourses.completed;
   const currentCourses = courses.filter((course) => current.includes(course.id));
   const pastCourses = courses.filter((course) => previous.includes(course.id) && !current.includes(course.id));
 

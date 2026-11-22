@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { Course, ListCoursesResponse } from '@tunion/shared';
+import type { Course, ListCoursesResponse, ListEnrollmentsResponse, SetEnrollmentResponse, EnrollmentStatus } from '@tunion/shared';
 import { useDemoAuth } from '../lib/demoAuth';
 import { api } from '../lib/api';
 import { initialCommunity, type Community } from './data';
@@ -10,6 +10,9 @@ interface CommunityContext {
   loading: boolean;
   courseError: string;
   storageError: string;
+  /** The signed-in user's enrollments, read from the database (not browser storage). */
+  myCourses: { current: number[]; completed: number[] };
+  setEnrollment: (courseId: number, status: EnrollmentStatus) => Promise<void>;
   data: Community;
   update: (change: (previous: Community) => Community) => void;
 }
@@ -30,6 +33,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [courseError, setCourseError] = useState('');
   const [storageError, setStorageError] = useState('');
+  const [enrollments, setEnrollments] = useState<ListEnrollmentsResponse['enrollments']>([]);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -48,6 +52,27 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
   }, [signedIn]);
 
   useEffect(() => {
+    setEnrollments([]);
+    if (!current) return;
+    const controller = new AbortController();
+    api<ListEnrollmentsResponse>('/users/' + current.id + '/enrollments', { signal: controller.signal })
+      .then((r) => setEnrollments(r.enrollments))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [current?.id]);
+
+  const myCourses = {
+    current: enrollments.filter((e) => e.status === 'current').map((e) => e.courseId),
+    completed: enrollments.filter((e) => e.status === 'completed').map((e) => e.courseId),
+  };
+  async function setEnrollment(courseId: number, status: EnrollmentStatus) {
+    const { enrollment } = await api<SetEnrollmentResponse>(`/courses/${courseId}/enrollment`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status }),
+    });
+    setEnrollments((previous) => [...previous.filter((e) => e.courseId !== courseId), enrollment]);
+  }
+
+  useEffect(() => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(data));
       setStorageError('');
@@ -56,7 +81,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     }
   }, [data]);
 
-  return <Context.Provider value={{ courses, loading, courseError, storageError, data, update: setData }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ courses, loading, courseError, storageError, myCourses, setEnrollment, data, update: setData }}>{children}</Context.Provider>;
 }
 
 export function useCommunity() {

@@ -42,10 +42,10 @@ export function GroupList({ items, membership = false }: { items: StudyGroup[]; 
 
 export default function GroupsPage() {
   const { current } = useDemoAuth();
-  const { data, update } = useCommunity();
+  const { data, myCourses, update } = useCommunity();
   const [course, setCourse] = useState('');
   const directory = useApiQuery(course === 'mine' ? '' : course, fetchStudyGroups);
-  const enrollments = current ? data.enrollments[current.id] ?? [] : [];
+  const enrollments = current ? myCourses.current : [];
   const matchesCourse = (item: { courseId: number }) => course === 'mine'
     ? enrollments.includes(item.courseId)
     : !course || String(item.courseId) === course;

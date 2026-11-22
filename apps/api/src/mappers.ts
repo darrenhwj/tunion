@@ -17,6 +17,7 @@ export function toUser(r: Row): User {
     major: (r.major as string) || null,
     year: (r.year as number) || null,
     bio: r.bio as string,
+    isTutor: r.is_tutor === 1,
     createdAt: r.created_at as string,
   };
 }
