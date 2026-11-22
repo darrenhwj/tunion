@@ -16,6 +16,12 @@ export default function DemoAccountSwitcher() {
     if (!selectorOpen && element?.open) element.close();
   }, [selectorOpen]);
 
+  function selectAccount(id: number | null) {
+    switchTo(id);
+    closeSelector();
+    void navigate('/', { replace: id === null });
+  }
+
   return <>
     <div className="site-account">
       <Badge tone="warning">Demo auth - not secure</Badge>
@@ -30,12 +36,19 @@ export default function DemoAccountSwitcher() {
       <p className="mb-4 text-sm text-ink-500">Demo sign-in is insecure. Anyone can select any account.</p>
       {loading && <p role="status">Loading accounts…</p>}
       {error && <p role="alert">{error}</p>}
-      <div className="grid gap-2">{accounts.map((account) => (
-        <Button key={account.id} variant="secondary" className="flex-wrap justify-between gap-2" onClick={() => { switchTo(account.id); closeSelector(); void navigate('/'); }}>
-          <span>{account.name}</span><AccountBadges role={account.role} tutor={account.isTutor} />
-        </Button>
-      ))}</div>
-      {current && <Button variant="ghost" className="mt-3" onClick={() => { switchTo(null); closeSelector(); }}>Sign Out</Button>}
+      <div className="grid gap-2">{accounts.map((account) => {
+        const selected = account.id === current?.id;
+        return <Button key={account.id} variant="secondary" aria-current={selected ? 'true' : undefined}
+          className="flex-wrap justify-between gap-2 text-left aria-[current=true]:border-brand-500 aria-[current=true]:bg-brand-100"
+          onClick={() => selectAccount(account.id)}>
+          <span>{account.name}</span>
+          <span className="flex flex-wrap items-center gap-2">
+            <AccountBadges role={account.role} tutor={account.isTutor} />
+            {selected && <Badge tone="brand">Current</Badge>}
+          </span>
+        </Button>;
+      })}</div>
+      {current && <Button variant="ghost" className="mt-3" onClick={() => selectAccount(null)}>Sign Out</Button>}
     </dialog>
   </>;
 }
