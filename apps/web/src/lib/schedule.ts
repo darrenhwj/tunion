@@ -21,7 +21,7 @@ export function monthStart(month: string, offset: number) {
 }
 
 export function dateTimeJst(value: string) {
-  return value + ':00+09:00';
+  return value + (value.length === 16 ? ':00' : '') + '+09:00';
 }
 
 export function timeLabel(range: TimeRange) {

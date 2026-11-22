@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { StudyGroupCalendarResponse, TimeRange, TutoringCalendarResponse } from '@tunion/shared';
 import Badge from './Badge';
@@ -9,6 +9,7 @@ import Glyph from './Glyph';
 import { api } from '../lib/api';
 import { dateTimeJst, locationLabel, monthStart, timeLabel, todayJst, weekdays } from '../lib/schedule';
 import { useApiQuery } from '../lib/useApiQuery';
+import { PendingTutoringRequests } from '../pages/TutoringActivity';
 
 const eventKinds = {
   providing: { label: 'Providing tutoring', dot: 'bg-purple-600' },
@@ -48,11 +49,13 @@ async function loadCalendar(key: string, signal: AbortSignal): Promise<CalendarE
   return events;
 }
 
-export default function DashboardCalendar({ accountId, canTutor, revision = 0 }: { accountId: number; canTutor: boolean; revision?: number }) {
+export default function DashboardCalendar({ accountId, canTutor }: { accountId: number; canTutor: boolean }) {
   const today = todayJst();
   const [month, setMonth] = useState(today.slice(0, 7));
   const [day, setDay] = useState<string | null>(null);
-  const query = useApiQuery(month + ':' + accountId + ':' + revision, loadCalendar);
+  const rightPanel = useRef<HTMLDivElement>(null);
+  const agenda = useRef<HTMLDivElement>(null);
+  const query = useApiQuery(month + ':' + accountId, loadCalendar);
   const start = monthStart(month, 0);
   const first = new Date(start + 'T00:00:00Z');
   const dayCount = new Date(Date.parse(monthStart(month, 1)) - 86400000).getUTCDate();
@@ -74,7 +77,15 @@ export default function DashboardCalendar({ accountId, canTutor, revision = 0 }:
     setDay(null);
   }
 
+  function selectDay(date: string | null) {
+    setDay(date);
+    if (rightPanel.current && agenda.current) rightPanel.current.scrollTop = agenda.current.offsetTop;
+  }
+
   const events = day ? eventsOn(day) : monthEvents;
+  // Keep the former 22rem agenda and its heading as the desktop height floor.
+  // Longer calendar months can still size the row exactly as before.
+  const rightPanelHeight = day ? 'min-h-[25rem]' : 'min-h-[24.25rem]';
   return <section aria-labelledby="calendar-heading" className="space-y-3">
     <h1 id="calendar-heading" className="flex items-center gap-2 text-2xl font-bold tracking-tight"><Glyph name="calendar" className="size-6 text-brand-700" /> Calendar</h1>
     <Card className="space-y-5 px-3 sm:px-5">
@@ -87,7 +98,7 @@ export default function DashboardCalendar({ accountId, canTutor, revision = 0 }:
             <h3 className="font-bold">{monthLabel} <span className="text-xs font-medium text-ink-500">JST</span></h3>
             <div className="flex items-center gap-1">
               <Button variant="ghost" aria-label="Previous month" onClick={() => move(-1)}><Glyph name="arrowLeft" className="size-4" /></Button>
-              <Button variant="ghost" onClick={() => { setMonth(today.slice(0, 7)); setDay(today); }}>Today</Button>
+              <Button variant="ghost" onClick={() => { setMonth(today.slice(0, 7)); selectDay(today); }}>Today</Button>
               <Button variant="ghost" aria-label="Next month" onClick={() => move(1)}><Glyph name="arrow" className="size-4" /></Button>
             </div>
           </div>
@@ -99,24 +110,30 @@ export default function DashboardCalendar({ accountId, canTutor, revision = 0 }:
               return <button key={date} type="button" aria-label={date + (kinds.length ? ', ' + kinds.map((kind) => eventKinds[kind].label).join(', ') : '')}
                 aria-current={date === today ? 'date' : undefined} aria-pressed={day === date}
                 className={'flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-md text-sm hover:bg-brand-50 hover:text-brand-700 sm:min-h-14 ' + (day === date ? 'bg-brand-100 font-semibold text-brand-700 ring-1 ring-brand-500' : date === today ? 'bg-brand-50 font-semibold text-brand-700' : 'bg-canvas')}
-                onClick={() => setDay(day === date ? null : date)}>{index + 1}{kinds.length > 0 && <span aria-hidden="true" className="flex gap-0.5">{kinds.map((kind) => <span key={kind} className={'size-1.5 rounded-full sm:size-2 ' + eventKinds[kind].dot} />)}</span>}</button>;
+                onClick={() => selectDay(day === date ? null : date)}>{index + 1}{kinds.length > 0 && <span aria-hidden="true" className="flex gap-0.5">{kinds.map((kind) => <span key={kind} className={'size-1.5 rounded-full sm:size-2 ' + eventKinds[kind].dot} />)}</span>}</button>;
             })}
           </div>
         </div>
-        <div className="min-w-0 space-y-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 id="calendar-agenda-heading" className="font-semibold">{day ?? 'Month agenda'}</h3>
-            {day && <Button variant="ghost" onClick={() => setDay(null)}>Show full month</Button>}
-          </div>
-          <div key={month + (day ?? '')} role="region" aria-labelledby="calendar-agenda-heading" aria-live="polite" tabIndex={0} className="h-[22rem] space-y-2 overflow-y-auto overscroll-contain pr-2">
-            {query.loading ? <p className="text-sm text-ink-500">Loading sessions…</p>
-              : query.error ? <p role="alert" className="text-sm text-red-300">{query.error} <button type="button" className={textLink} onClick={query.refresh}>Retry</button></p>
-              : events.length ? events.map((event) => <div key={event.url} className="space-y-1 rounded-lg border border-line p-3">
-                <div className="flex flex-wrap gap-2"><Badge tone="brand">{event.course}</Badge><Badge>{eventKinds[event.kind].label}</Badge>{event.status === 'completed' && <Badge>Completed</Badge>}</div>
-                <Link to={event.url} className={textLink + ' line-clamp-1 break-words'}>{event.title}</Link>
-                <p className="text-xs text-ink-700">{timeLabel(event)}</p>
-                <p className="truncate text-xs text-ink-500">{event.location}</p>
-              </div>) : <p className="text-sm text-ink-500">No sessions for this date range.</p>}
+        <div className={'relative min-w-0 ' + rightPanelHeight}>
+          <div ref={rightPanel} role="region" aria-label="Calendar agenda and tutoring requests" tabIndex={0}
+            className="relative max-h-[26rem] space-y-5 overflow-y-auto pr-2 xl:absolute xl:inset-0 xl:max-h-none xl:overscroll-contain">
+            <PendingTutoringRequests userId={accountId} canTutor={canTutor} onChange={query.refresh} />
+            <div ref={agenda} className="space-y-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 id="calendar-agenda-heading" className="font-semibold">{day ?? 'Month agenda'}</h3>
+                {day && <Button variant="ghost" onClick={() => setDay(null)}>Show full month</Button>}
+              </div>
+              <div key={month + (day ?? '')} role="region" aria-labelledby="calendar-agenda-heading" aria-live="polite" className="space-y-2">
+                {query.loading ? <p className="text-sm text-ink-500">Loading sessions…</p>
+                  : query.error ? <p role="alert" className="text-sm text-red-300">{query.error} <button type="button" className={textLink} onClick={query.refresh}>Retry</button></p>
+                  : events.length ? events.map((event) => <div key={event.url} className="space-y-1 rounded-lg border border-line p-3">
+                    <div className="flex flex-wrap gap-2"><Badge tone="brand">{event.course}</Badge><Badge>{eventKinds[event.kind].label}</Badge>{event.status === 'completed' && <Badge>Completed</Badge>}</div>
+                    <Link to={event.url} className={textLink + ' line-clamp-1 break-words'}>{event.title}</Link>
+                    <p className="text-xs text-ink-700">{timeLabel(event)}</p>
+                    <p className="truncate text-xs text-ink-500">{event.location}</p>
+                  </div>) : <p className="text-sm text-ink-500">No sessions for this date range.</p>}
+              </div>
+            </div>
           </div>
         </div>
       </div>
