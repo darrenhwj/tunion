@@ -11,6 +11,8 @@ import { tutoringRequestsRouter } from './routes/tutoringRequests';
 import { tutoringSessionsRouter } from './routes/tutoringSessions';
 import { studyGroupsRouter, studyGroupSessionsRouter } from './routes/studyGroups';
 import { calendarRouter } from './routes/calendar';
+import { resourcesRouter } from './routes/resources';
+import { oneTimeSessionsRouter } from './routes/oneTimeSessions';
 import { errorHandler } from './http';
 
 export function createApp() {
@@ -45,6 +47,8 @@ export function createApp() {
   app.use('/api/tutoring-sessions', tutoringSessionsRouter);
   app.use('/api/study-groups', studyGroupsRouter);
   app.use('/api/study-group-sessions', studyGroupSessionsRouter);
+  app.use('/api/resources', resourcesRouter);
+  app.use('/api/one-time-sessions', oneTimeSessionsRouter);
   app.use('/api/calendar', calendarRouter);
   app.use('/api', demoAuthRouter);
 

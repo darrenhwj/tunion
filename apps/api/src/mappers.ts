@@ -1,9 +1,10 @@
-import type { Course, DiscussionSummary, ThreadedReply, User, UserRole } from '@tunion/shared';
+import type { AuthorSummary, Course, DiscussionSummary, ThreadedReply, User, UserRole } from '@tunion/shared';
 import type {
-  AvailabilitySlot, DayOfWeek, LocationType, MeetingDetails, StudyGroup, StudyGroupSession, Tutor, TutorProfile,
+  AvailabilitySlot, DayOfWeek, OneTimeSession, ResourceSummary, ResourceType, LocationType, MeetingDetails, StudyGroup, StudyGroupSession, Tutor, TutorProfile,
   TutoringRequestDetail, TutoringRequestStatus, TutoringSession, TutoringSessionStatus,
 } from '@tunion/shared';
 import { timeRange } from './time';
+import { isPreviewable } from './uploads';
 
 type Row = Record<string, unknown>;
 
@@ -168,6 +169,54 @@ export function toStudyGroup(r: Row, memberIds: number[]): StudyGroup {
     location: r.location as string,
     maxMembers: r.max_members as number,
     memberIds,
+    createdAt: r.created_at as string,
+  };
+}
+
+/** Row from RESOURCE_SELECT in routes/resources.ts. */
+export function toResourceSummary(r: Row): ResourceSummary {
+  const id = r.id as number;
+  const hasFile = r.stored_name != null;
+  const mime = r.mime_type as string | null;
+  const previewable = hasFile && mime !== null && isPreviewable(mime);
+  return {
+    id,
+    courseId: r.course_id as number,
+    courseCode: r.course_code as string,
+    authorId: r.author_id as number,
+    author: { id: r.author_id as number, name: r.author_name as string, role: r.author_role as UserRole },
+    title: r.title as string,
+    description: r.description as string,
+    type: r.type as ResourceType,
+    url: (r.url as string | null) ?? null,
+    createdAt: r.created_at as string,
+    file: hasFile
+      ? { filename: r.original_filename as string, mimeType: mime ?? 'application/octet-stream', sizeBytes: r.size_bytes as number, previewable }
+      : null,
+    downloadUrl: hasFile ? `/api/resources/${id}/download` : null,
+    previewUrl: previewable ? `/api/resources/${id}/preview` : null,
+    upvoteCount: r.upvote_count as number,
+    hasUpvoted: r.has_upvoted === 1,
+  };
+}
+
+export function toOneTimeSession(r: Row, participants: AuthorSummary[], viewerId: number): OneTimeSession {
+  return {
+    id: r.id as number,
+    courseId: r.course_id as number,
+    courseCode: r.course_code as string,
+    courseTitle: r.course_title as string,
+    title: r.title as string,
+    description: r.description as string,
+    ...timeRange(r.starts_at as string, r.ends_at as string),
+    location: r.location as string,
+    creator: { id: r.creator_id as number, name: r.creator_name as string, role: r.creator_role as UserRole },
+    maxParticipants: r.max_participants as number,
+    participantCount: participants.length,
+    participants,
+    isCreator: viewerId !== 0 && r.creator_id === viewerId,
+    isParticipant: participants.some((p) => p.id === viewerId),
+    status: r.status as OneTimeSession['status'],
     createdAt: r.created_at as string,
   };
 }

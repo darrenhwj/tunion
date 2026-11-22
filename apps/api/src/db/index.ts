@@ -44,6 +44,13 @@ export function migrate(database: DatabaseSync): void {
     database.exec('ALTER TABLE replies ADD COLUMN parent_reply_id INTEGER REFERENCES replies(id) ON DELETE CASCADE');
   }
   database.exec('CREATE INDEX IF NOT EXISTS idx_replies_parent ON replies(parent_reply_id)');
+  // Databases created before file uploads lack the resource file columns; add them in place (existing rows become link-style).
+  const resourceCols = (database.prepare('PRAGMA table_info(resources)').all() as { name: string }[]).map((c) => c.name);
+  for (const [col, ddl] of [
+    ['stored_name', 'TEXT'], ['original_filename', 'TEXT'], ['mime_type', 'TEXT'], ['size_bytes', 'INTEGER'],
+  ] as const) {
+    if (!resourceCols.includes(col)) database.exec(`ALTER TABLE resources ADD COLUMN ${col} ${ddl}`);
+  }
   if (legacyRequests) {
     database.exec('BEGIN');
     try {
