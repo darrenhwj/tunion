@@ -10,6 +10,7 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:ensure": "tsx src/db/ensure.ts",
     "db:seed": "tsx src/db/seed.ts",
+    "import:csv": "tsx src/import/cli.ts",
     "db:reset": "tsx src/db/seed.ts --reset",
     "test": "tsx --test \"src/**/*.test.ts\""
   },

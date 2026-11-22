@@ -13,7 +13,7 @@ coursesRouter.get('/', (req, res) => {
   if (levelRaw !== undefined && !['100', '200', '300', '400'].includes(levelRaw)) {
     throw new HttpError(400, 'level must be one of 100, 200, 300, 400');
   }
-  const where: string[] = [];
+  const where: string[] = ['is_hidden = 0'];
   const params: Record<string, string | number> = {};
   if (q) {
     where.push("(code LIKE :q ESCAPE '\\' OR title LIKE :q ESCAPE '\\' OR description LIKE :q ESCAPE '\\')");
@@ -23,7 +23,7 @@ coursesRouter.get('/', (req, res) => {
     where.push('level = :level');
     params.level = Number(levelRaw);
   }
-  const sql = `SELECT * FROM courses ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY code`;
+  const sql = `SELECT * FROM courses WHERE ${where.join(' AND ')} ORDER BY code`;
   const rows = getDb().prepare(sql).all(params);
   res.json({ courses: rows.map(toCourse) } satisfies ListCoursesResponse);
 });

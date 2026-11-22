@@ -14,13 +14,17 @@ let db: DatabaseSync | undefined;
 
 /** Opens (and lazily creates) the SQLite database, applying the schema. */
 export function getDb(): DatabaseSync {
-  if (!db) {
-    mkdirSync(dirname(DB_PATH), { recursive: true });
-    db = new DatabaseSync(DB_PATH);
-    db.exec('PRAGMA journal_mode = WAL;');
-    migrate(db);
-  }
+  if (!db) db = openDatabase(DB_PATH);
   return db;
+}
+
+/** Opens (creating if needed) the database at `path` and applies migrations. */
+export function openDatabase(path: string): DatabaseSync {
+  mkdirSync(dirname(path), { recursive: true });
+  const database = new DatabaseSync(path);
+  database.exec('PRAGMA journal_mode = WAL;');
+  migrate(database);
+  return database;
 }
 
 /**
@@ -50,6 +54,15 @@ export function migrate(database: DatabaseSync): void {
     ['stored_name', 'TEXT'], ['original_filename', 'TEXT'], ['mime_type', 'TEXT'], ['size_bytes', 'INTEGER'],
   ] as const) {
     if (!resourceCols.includes(col)) database.exec(`ALTER TABLE resources ADD COLUMN ${col} ${ddl}`);
+  }
+  // Databases created before CSV import lack these columns; add them in place (existing rows: visible, 'current').
+  for (const [table, col, ddl] of [
+    ['users', 'is_hidden', 'INTEGER NOT NULL DEFAULT 0'],
+    ['courses', 'is_hidden', 'INTEGER NOT NULL DEFAULT 0'],
+    ['enrollments', 'status', "TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current','completed'))"],
+  ] as const) {
+    const names = (database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+    if (!names.includes(col)) database.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`);
   }
   if (legacyRequests) {
     database.exec('BEGIN');

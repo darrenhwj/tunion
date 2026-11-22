@@ -40,7 +40,7 @@ calendarRouter.get('/study-groups', (req, res) => {
     scope === 'mine'
       ? 'AND EXISTS (SELECT 1 FROM study_group_members m WHERE m.group_id = gs.group_id AND m.user_id = :viewer)'
       : `AND NOT EXISTS (SELECT 1 FROM study_group_members m WHERE m.group_id = gs.group_id AND m.user_id = :viewer)
-         AND g.course_id IN (SELECT course_id FROM enrollments WHERE user_id = :viewer)
+         AND g.course_id IN (SELECT course_id FROM enrollments WHERE user_id = :viewer AND status = 'current')
          AND (SELECT COUNT(*) FROM study_group_members m WHERE m.group_id = gs.group_id) < g.max_members`;
   const rows = getDb()
     .prepare(
@@ -55,7 +55,7 @@ calendarRouter.get('/study-groups', (req, res) => {
   const oneTimeFilter =
     scope === 'mine'
       ? `AND ${joined}`
-      : `AND NOT ${joined} AND o.starts_at > :now AND o.course_id IN (SELECT course_id FROM enrollments WHERE user_id = :viewer)
+      : `AND NOT ${joined} AND o.starts_at > :now AND o.course_id IN (SELECT course_id FROM enrollments WHERE user_id = :viewer AND status = 'current')
          AND (SELECT COUNT(*) FROM one_time_session_participants p WHERE p.session_id = o.id) < o.max_participants`;
   const oneTimeParams: Record<string, string | number> = { viewer: req.demoUser!.id, from: range.from, to: range.to };
   if (scope === 'discover') oneTimeParams.now = nowIso();
