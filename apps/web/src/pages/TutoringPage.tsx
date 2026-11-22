@@ -1,3 +1,4 @@
+import AccountBadges from '../components/AccountBadges';
 import { useState, type FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { LOCATION_TYPE_LABELS, type CreateTutoringRequestRequest, type CreateTutoringRequestResponse, type GetTutorResponse, type ListTutorsResponse, type TutorProfile } from '@tunion/shared';
@@ -34,7 +35,7 @@ export function TutoringPage() {
     <div className="max-w-md"><Field label="Course"><CourseSelect all value={course} onChange={setCourse} /></Field></div>
     {query.loading || query.error ? <Empty>{query.error ?? 'Loading tutors…'}</Empty> : available.length
       ? <div className="grid gap-4 sm:grid-cols-2">{available.map((tutor) => <Card key={tutor.id} className="space-y-3">
-        <h2 className="text-lg font-bold">{tutor.user.name}</h2>
+        <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold">{tutor.user.name}</h2><AccountBadges role={tutor.user.role} tutor /></div>
         <p className="text-sm text-ink-700">{tutor.headline}</p>
         <p className="text-sm text-ink-500">{tutor.slots.length ? tutor.slots.length + ' weekly slots (JST)' : 'No weekly slots listed'}</p>
         <TutorCourses tutor={tutor} />
@@ -65,6 +66,7 @@ export function TutorPage() {
   return <>
     <Link to="/tutoring" className={textLink}>← Tutor directory</Link>
     <PageHeading title={tutor.user.name} description={tutor.headline}>
+      <AccountBadges role={tutor.user.role} tutor />
       {ownProfile && <Link to="/tutoring/availability" className={textLink}>Manage my availability →</Link>}
     </PageHeading>
     <Card className="space-y-3">

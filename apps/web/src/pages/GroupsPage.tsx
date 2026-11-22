@@ -9,6 +9,7 @@ import { CourseSelect, Empty, Field, PageHeading, RequireAccount, field, textLin
 import { nextId, useCommunity } from '../demo/community';
 import { useApiQuery } from '../lib/useApiQuery';
 import { fetchStudyGroups } from './StudyGroupPage';
+import OneTimeSessions from './OneTimeSessions';
 import { useDemoAuth } from '../lib/demoAuth';
 
 export function GroupList({ items, membership = false }: { items: StudyGroup[]; membership?: boolean }) {
@@ -43,7 +44,12 @@ export default function GroupsPage() {
   const { current } = useDemoAuth();
   const { data, update } = useCommunity();
   const [course, setCourse] = useState('');
-  const directory = useApiQuery(course, fetchStudyGroups);
+  const directory = useApiQuery(course === 'mine' ? '' : course, fetchStudyGroups);
+  const enrollments = current ? data.enrollments[current.id] ?? [] : [];
+  const matchesCourse = (item: { courseId: number }) => course === 'mine'
+    ? enrollments.includes(item.courseId)
+    : !course || String(item.courseId) === course;
+  const groupsWithCalendars = (directory.data?.studyGroups ?? []).filter(matchesCourse);
   const [editing, setEditing] = useState(false);
 
   function create(event: FormEvent<HTMLFormElement>) {
@@ -65,7 +71,7 @@ export default function GroupsPage() {
       <Button variant={editing ? 'secondary' : 'primary'} onClick={() => setEditing(!editing)}>{editing ? 'Cancel' : 'Create group'}</Button>
     </PageHeading>
     {editing && <RequireAccount><Card className="max-w-2xl"><form onSubmit={create} className="space-y-4">
-      <Field label="Course"><CourseSelect defaultValue={course} /></Field>
+      <Field label="Course"><CourseSelect defaultValue={course === 'mine' ? undefined : course} /></Field>
       <Field label="Group name"><input name="name" className={field} required pattern=".*\S.*" maxLength={120} /></Field>
       <Field label="Description"><textarea name="description" className={field} rows={3} /></Field>
       <Field label="Meeting time"><input name="meetingTime" className={field} required pattern=".*\S.*" placeholder="Wednesdays, 4 PM" /></Field>
@@ -73,11 +79,12 @@ export default function GroupsPage() {
       <Field label="Member limit"><input name="maxMembers" className={field} type="number" min={2} max={100} defaultValue={8} required /></Field>
       <Button type="submit">Publish group</Button>
     </form></Card></RequireAccount>}
-    <div className="max-w-md"><Field label="Course"><CourseSelect all value={course} onChange={setCourse} /></Field></div>
+    <div className="max-w-md"><Field label="Course"><CourseSelect all includeMyCourses value={course} onChange={setCourse} /></Field></div>
+    <OneTimeSessions course={course} enrolled={enrollments} />
     <section className="space-y-3">
       <h2 className="text-xl font-bold">Groups with calendars</h2>
-      {directory.loading || directory.error ? <Empty>{directory.error ?? 'Loading study groups…'}</Empty> : directory.data?.studyGroups.length
-        ? <div className="grid gap-3 sm:grid-cols-2">{directory.data.studyGroups.map((group) => <Card key={group.id} className="space-y-2">
+      {directory.loading || directory.error ? <Empty>{directory.error ?? 'Loading study groups…'}</Empty> : groupsWithCalendars.length
+        ? <div className="grid gap-3 sm:grid-cols-2">{groupsWithCalendars.map((group) => <Card key={group.id} className="space-y-2">
           <h3 className="font-bold"><Link to={'/groups/' + group.id} className={textLink}>{group.name} →</Link></h3>
           <p className="text-sm text-ink-700">{group.description}</p>
           <p className="text-xs text-ink-500">{group.memberIds.length} / {group.maxMembers} members</p>
@@ -85,7 +92,7 @@ export default function GroupsPage() {
     </section>
     <section className="space-y-3">
       <h2 className="text-xl font-bold">Browser-local groups</h2>
-      <GroupList items={data.groups.filter((group) => !course || String(group.courseId) === course)} membership />
+      <GroupList items={data.groups.filter(matchesCourse)} membership />
     </section>
   </>;
 }

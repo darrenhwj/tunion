@@ -1,3 +1,4 @@
+import AccountBadges from './AccountBadges';
 import { cloneElement, useId, type ReactElement, type ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useCommunity } from '../demo/community';
@@ -35,18 +36,23 @@ export function Field({ label, children }: { label: string; children: ReactEleme
   </label>;
 }
 
-export function CourseSelect({ name = 'courseId', defaultValue, all = false, value, onChange, 'aria-labelledby': labelId }: { name?: string; defaultValue?: number | string; all?: boolean; value?: string; onChange?: (value: string) => void; 'aria-labelledby'?: string }) {
+export function CourseSelect({ name = 'courseId', defaultValue, all = false, includeMyCourses = false, value, onChange, 'aria-labelledby': labelId }: { name?: string; defaultValue?: number | string; all?: boolean; includeMyCourses?: boolean; value?: string; onChange?: (value: string) => void; 'aria-labelledby'?: string }) {
   const { courses, loading } = useCommunity();
   return <select aria-labelledby={labelId} key={loading ? 'loading' : 'ready'} className={field} name={name} value={value} defaultValue={defaultValue} onChange={onChange && ((event) => onChange(event.target.value))} required={!all}>
     <option value="">{all ? 'All courses' : 'Choose a course'}</option>
+    {all && includeMyCourses && <option value="mine">My Courses</option>}
     {courses.map((course) => <option key={course.id} value={course.id}>{course.code} · {course.title}</option>)}
   </select>;
 }
 
-export function Person({ id }: { id: number }) {
+export function Person({ id, showRole = false }: { id: number; showRole?: boolean }) {
   const { accounts } = useDemoAuth();
   const person = accounts.find((account) => account.id === id);
-  return person ? <Link className="font-medium hover:text-brand-700 hover:underline" to={'/people/' + id}>{person.name}</Link> : 'Community member';
+  if (!person) return 'Community member';
+  return <span className="inline-flex flex-wrap items-center gap-2">
+    <Link className="font-medium hover:text-brand-700 hover:underline" to={'/people/' + id}>{person.name}</Link>
+    {showRole && <AccountBadges role={person.role} />}
+  </span>;
 }
 
 export function Tabs({ links, label }: { links: { to: string; label: string }[]; label: string }) {

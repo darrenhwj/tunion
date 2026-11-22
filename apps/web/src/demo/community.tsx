@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Course, ListCoursesResponse } from '@tunion/shared';
+import { useDemoAuth } from '../lib/demoAuth';
 import { api } from '../lib/api';
 import { initialCommunity, type Community } from './data';
 
@@ -15,6 +16,8 @@ interface CommunityContext {
 const Context = createContext<CommunityContext | null>(null);
 
 export function CommunityProvider({ children }: { children: ReactNode }) {
+  const { current } = useDemoAuth();
+  const signedIn = !!current;
   const [data, setData] = useState<Community>(() => {
     try {
       const saved = localStorage.getItem(storageKey);
@@ -29,6 +32,9 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
   const [storageError, setStorageError] = useState('');
 
   useEffect(() => {
+    if (!signedIn) return;
+    setLoading(true);
+    setCourseError('');
     const controller = new AbortController();
     api<ListCoursesResponse>('/courses', { signal: controller.signal })
       .then(({ courses }) => setCourses(courses))
@@ -39,7 +45,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [signedIn]);
 
   useEffect(() => {
     try {

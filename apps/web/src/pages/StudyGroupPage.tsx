@@ -4,7 +4,7 @@ import type { CreateStudyGroupSessionRequest, GetStudyGroupResponse, ListStudyGr
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
-import { Empty, Field, PageHeading, field, textLink } from '../components/CommunityUI';
+import { Empty, Field, PageHeading, Person, field, textLink } from '../components/CommunityUI';
 import { MeetingTimes } from '../components/ScheduleFields';
 import { api, postJson } from '../lib/api';
 import { useDemoAuth } from '../lib/demoAuth';
@@ -35,6 +35,7 @@ export default function StudyGroupPage() {
       {current && group.memberIds.includes(current.id) && <Badge tone="brand">Member</Badge>}
     </PageHeading>
     <p className="text-sm text-ink-700">{group.memberIds.length} / {group.maxMembers} members · {group.location}</p>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"><strong>Group members</strong>{group.memberIds.map((id) => <Person key={id} id={id} />)}</div>
     <GroupSessions key={groupId + ':' + current?.id} groupId={groupId} canSchedule={current?.id === group.creatorId} />
   </>;
 }
@@ -91,7 +92,7 @@ function GroupSessions({ groupId, canSchedule }: { groupId: string; canSchedule:
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     {query.loading || query.error ? <Empty>{query.error ?? 'Loading study sessions…'}</Empty> : query.data?.sessions.length
       ? query.data.sessions.map((session) => <Card key={session.id} id={'session-' + session.id} className="space-y-2">
-        <Badge>{session.status}</Badge><h3 className="font-bold">{session.title}</h3>
+        <div className="flex flex-wrap gap-2"><Badge tone="brand">{session.courseCode}</Badge><Badge>{session.status}</Badge></div><h3 className="font-bold">{session.title}</h3>
         <p className="text-sm">{timeLabel(session)}</p><p className="break-words text-sm text-ink-500">{session.location}</p>
         {current?.id === session.createdById && session.status === 'scheduled' && <Button disabled={pending} variant="secondary" onClick={() => {
           if (window.confirm('Cancel this study group session?')) void mutate(() => api<StudyGroupSessionResponse>('/study-group-sessions/' + session.id + '/cancel', { method: 'POST' }));
