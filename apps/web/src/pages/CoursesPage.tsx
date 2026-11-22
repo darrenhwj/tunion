@@ -91,5 +91,5 @@ export function CoursePeople() {
   const { courseId } = useParams();
   const { data } = useCommunity();
   const people = Object.entries(data.enrollments).filter(([, ids]) => ids.includes(Number(courseId)));
-  return people.length ? <div className="grid gap-3 sm:grid-cols-2">{people.map(([id]) => <Card key={id}><Person id={Number(id)} /></Card>)}</div> : <Empty>No members have joined this course yet.</Empty>;
+  return people.length ? <div className="grid gap-3 sm:grid-cols-2">{people.map(([id]) => <Card key={id}><Person id={Number(id)} showRole /></Card>)}</div> : <Empty>No members have joined this course yet.</Empty>;
 }

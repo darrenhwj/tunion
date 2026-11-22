@@ -1,44 +1,63 @@
-import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Empty, textLink } from '../components/CommunityUI';
+import type { Course } from '@tunion/shared';
+import Card from '../components/Card';
+import Badge from '../components/Badge';
+import { Empty } from '../components/CommunityUI';
 import DashboardCalendar from '../components/DashboardCalendar';
 import Glyph from '../components/Glyph';
 import { useCommunity } from '../demo/community';
-import { fetchDiscussions } from '../lib/discussions';
-import { useApiQuery } from '../lib/useApiQuery';
 import { useDemoAuth } from '../lib/demoAuth';
-import { CourseCard } from './CoursesPage';
-import { DiscussionList } from './DiscussionsPage';
-import { ResourceList } from './ResourcesPage';
+import collage from '../assets/campus-collage.jpg';
 
-function DashboardSection({ title, to, action, children }: { title: string; to: string; action: string; children: ReactNode }) {
-  return <section className="min-w-0 space-y-4">
-    <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <h2 className="text-xl font-bold tracking-tight">{title}</h2>
-      <Link to={to} className={textLink}>{action} →</Link>
+export default function HomePage() {
+  const { current, loading } = useDemoAuth();
+  if (loading) return <Empty>Loading dashboard…</Empty>;
+  return current ? <StudentDashboard key={current.id} accountId={current.id} canTutor={current.role === 'tutor'} /> : <PublicLanding />;
+}
+
+function PublicLanding() {
+  return <section className="overflow-hidden rounded-2xl bg-[#242058] text-white sm:grid lg:grid-cols-[0.85fr_1.15fr]">
+    <div className="flex flex-col justify-center p-6 sm:p-10">
+      <span className="mb-5 grid size-12 place-items-center rounded-xl bg-white/15"><Glyph name="brand" className="size-6" /></span>
+      <h1 className="text-5xl font-extrabold tracking-tight sm:text-7xl">TUnion</h1>
+      <p className="mt-4 max-w-md text-base leading-7 text-indigo-100">Your computer science peer-learning community. Find classmates, work through tough topics together, and get help from student tutors.</p>
     </div>
-    {children}
+    <img src={collage} alt="A university courtyard and students learning together on campus" className="aspect-[3/2] h-full w-full object-cover" />
   </section>;
 }
 
-export default function HomePage() {
-  const { current } = useDemoAuth();
+function StudentDashboard({ accountId, canTutor }: { accountId: number; canTutor: boolean }) {
   const { courses, loading, courseError, data } = useCommunity();
-  const recent = useApiQuery('limit=3', fetchDiscussions);
-  const myCourses = current ? courses.filter((course) => (data.enrollments[current.id] ?? []).includes(course.id)) : [];
+  const current = data.enrollments[accountId] ?? [];
+  const previous = data.pastCourses?.[accountId] ?? [];
+  const currentCourses = courses.filter((course) => current.includes(course.id));
+  const pastCourses = courses.filter((course) => previous.includes(course.id) && !current.includes(course.id));
+
   return <>
-    <section className="relative isolate overflow-hidden rounded-2xl bg-[#242058] px-6 py-8 text-white sm:px-9 sm:py-10">
-      <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-28 -z-10 size-80 rounded-full border-[36px] border-white/10" />
-      <div aria-hidden="true" className="pointer-events-none absolute -bottom-32 right-24 -z-10 size-64 rounded-full border-[30px] border-indigo-300/15" />
-      <h1 className="text-3xl font-extrabold tracking-tight sm:text-5xl">{current ? 'Welcome, ' + current.name.split(' ')[0] : 'Welcome to TUnion'}</h1>
-      <p className="mt-3 max-w-lg text-sm leading-6 text-indigo-100 sm:text-base">Ask classmates for help, share resources, and find people to study with.</p>
-      <Link to="/courses" className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-brand-700 hover:bg-brand-100">Explore courses <Glyph name="arrow" className="size-4" /></Link>
+    <DashboardCalendar accountId={accountId} canTutor={canTutor} />
+    <section aria-labelledby="my-courses" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="my-courses" className="text-xl font-bold tracking-tight">My Courses</h2>
+        <Link to="/courses" className="text-sm font-semibold text-brand-700 hover:underline">Browse courses →</Link>
+      </div>
+      {loading || courseError ? <Empty>{courseError || 'Loading courses…'}</Empty>
+        : !currentCourses.length && !pastCourses.length ? <Empty>Join a course to see it here.</Empty>
+        : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {currentCourses.map((course) => <CourseTile key={course.id} course={course} status="Current" />)}
+          {pastCourses.map((course) => <CourseTile key={course.id} course={course} status="Past course" />)}
+        </div>}
     </section>
-    <DashboardCalendar />
-    <DashboardSection title="My Courses" to="/courses" action="Browse courses">
-      {myCourses.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{myCourses.map((course) => <CourseCard key={course.id} course={course} />)}</div> : <Empty>{loading ? 'Loading courses…' : courseError || (current ? 'Join a course to see it here.' : 'Select a demo account in the header to see your courses.')}</Empty>}
-    </DashboardSection>
-    <DashboardSection title="Recent discussions" to="/discussions" action="All discussions">{recent.loading || recent.error ? <Empty>{recent.error ?? 'Loading discussions…'}</Empty> : <DiscussionList items={recent.data?.discussions ?? []} />}</DashboardSection>
-    <DashboardSection title="Recent resources" to="/resources" action="All resources"><ResourceList items={data.resources.slice(0, 3)} /></DashboardSection>
   </>;
+}
+
+function CourseTile({ course, status }: { course: Course; status: string }) {
+  return <Link to={'/courses/' + course.id} className="group min-w-0">
+    <Card className="flex h-full min-w-0 items-start gap-3 p-4 group-hover:border-brand-500">
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700"><Glyph name="courses" className="size-4" /></span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-brand-700">{course.code}</span><Badge>{status}</Badge></div>
+        <h3 className="mt-1 break-words text-sm font-semibold">{course.title}</h3>
+      </div>
+    </Card>
+  </Link>;
 }

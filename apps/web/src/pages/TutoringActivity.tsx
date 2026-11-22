@@ -1,3 +1,4 @@
+import AccountBadges from '../components/AccountBadges';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import type { ApproveTutoringRequestRequest, ConfirmTutoringRequestResponse, ListTutoringRequestsResponse, ListTutoringSessionsResponse, LocationType, RejectTutoringRequestRequest, TutoringRequestDetail, TutoringRequestResponse, TutoringSessionResponse } from '@tunion/shared';
@@ -156,8 +157,8 @@ function SessionDetails({ id, userId }: { id: string; userId: number }) {
     <Card className="space-y-3">
       <p className="font-semibold">{timeLabel(session)}</p>
       <p className="break-words">{locationLabel(session)}</p>
-      <p className="text-sm text-ink-500">Tutor · {session.tutor.name}</p>
-      <p className="text-sm text-ink-500">Student · {session.student.name}</p>
+      <p className="text-sm text-ink-500">Providing · {session.tutor.name} <AccountBadges role={session.tutor.role} tutor /></p>
+      <p className="text-sm text-ink-500">Receiving · {session.student.name} <AccountBadges role={session.student.role} /></p>
       {session.status === 'scheduled' && <div className="flex flex-wrap gap-2">
         {session.tutor.id === userId && Date.parse(session.startsAt) <= Date.now() && <Button disabled={pending} onClick={() => void change('complete')}>Mark complete</Button>}
         <Button variant="secondary" disabled={pending} onClick={() => { if (window.confirm('Cancel this tutoring session?')) void change('cancel'); }}>Cancel session</Button>

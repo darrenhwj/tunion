@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import type { ResourceType } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
+import ResourcePreview from '../components/ResourcePreview';
 import Card from '../components/Card';
 import { CourseSelect, Empty, Field, PageHeading, Person, RequireAccount, field, textLink } from '../components/CommunityUI';
 import { nextId, useCommunity } from '../demo/community';
@@ -22,15 +23,22 @@ export function ResourceList({ items }: { items: DemoResource[] }) {
       <p className="text-sm break-words text-ink-700">{resource.description}</p>
       <p className="text-xs text-ink-500"><Person id={resource.authorId} /></p>
     </div>
-    <ResourceControl resource={resource} />
+    <div className="space-y-2">
+      <ResourceControl resource={resource} />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="secondary" disabled aria-label="Upvote resource (unavailable)">↑ Upvote</Button>
+        <span className="text-xs text-ink-500">Vote total unavailable</span>
+      </div>
+    </div>
   </Card>)}</div>;
 }
 
 function ResourceControl({ resource }: { resource: DemoResource }) {
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
+  const [preview, setPreview] = useState(false);
   const { url, filename } = resource;
-  if (!url) return null;
+  if (!url) return <p className="text-sm text-ink-500">File unavailable</p>;
 
   async function download() {
     if (!url || !filename) return;
@@ -50,10 +58,19 @@ function ResourceControl({ resource }: { resource: DemoResource }) {
     }
   }
 
-  if (url.startsWith('local-file:')) return <div><Button variant="secondary" disabled={working} onClick={download}>{working ? 'Preparing…' : 'Download'}</Button>{error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}</div>;
-  return filename
-    ? <a href={url} download={filename} className={textLink}>Download</a>
-    : <a href={url} target="_blank" rel="noreferrer" className={textLink}>Open link ↗</a>;
+  if (!filename) return <a href={url} target="_blank" rel="noreferrer" className={textLink}>Open link ↗</a>;
+  const downloadControl = url.startsWith('local-file:')
+    ? <Button variant="secondary" disabled={working} onClick={download}>{working ? 'Preparing…' : 'Download'}</Button>
+    : <a href={url} download={filename} className={textLink}>Download</a>;
+  const downloadError = error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>;
+  return <>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button variant="secondary" onClick={() => { setError(''); setPreview(true); }}>Preview</Button>
+      {downloadControl}
+    </div>
+    {!preview && downloadError}
+    {preview && <ResourcePreview resource={resource} close={() => setPreview(false)} download={<>{downloadControl}{downloadError}</>} />}
+  </>;
 }
 
 export default function ResourcesPage() {

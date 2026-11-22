@@ -1,9 +1,18 @@
-import type { Resource, StudyGroup } from '@tunion/shared';
+import type { MeetingDetails, Resource, StudyGroup } from '@tunion/shared';
 
 export type DemoResource = Resource & { filename?: string };
+export interface DemoStudySession extends MeetingDetails {
+  id: number;
+  courseId: number;
+  title: string;
+  description: string;
+  participantIds: number[];
+}
+
 export interface Community {
   resources: DemoResource[];
   groups: StudyGroup[];
+  oneTimeSessions?: DemoStudySession[];
   downvotes?: Record<string, boolean>;
   enrollments: Record<number, number[]>;
   pastCourses?: Record<number, number[]>;

@@ -9,12 +9,16 @@ interface DemoAuthState {
   current: User | null;
   loading: boolean;
   error: string | null;
+  selectorOpen: boolean;
+  openSelector: () => void;
+  closeSelector: () => void;
   switchTo: (id: number | null) => void;
 }
 
 const Ctx = createContext<DemoAuthState | null>(null);
 
 export function DemoAuthProvider({ children }: { children: ReactNode }) {
+  const [selectorOpen, setSelectorOpen] = useState(false);
   const [accounts, setAccounts] = useState<User[]>([]);
   const [currentId, setCurrentId] = useState<number | null>(getStoredDemoUserId());
   const [loading, setLoading] = useState(true);
@@ -33,7 +37,7 @@ export function DemoAuthProvider({ children }: { children: ReactNode }) {
   };
 
   const current = accounts.find((a) => a.id === currentId) ?? null;
-  return <Ctx.Provider value={{ accounts, current, loading, error, switchTo }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ accounts, current, loading, error, switchTo, selectorOpen, openSelector: () => setSelectorOpen(true), closeSelector: () => setSelectorOpen(false) }}>{children}</Ctx.Provider>;
 }
 
 export function useDemoAuth(): DemoAuthState {

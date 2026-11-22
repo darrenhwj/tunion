@@ -1,3 +1,4 @@
+import AccountBadges from '../components/AccountBadges';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { LOCATION_TYPE_LABELS, type AvailabilitySlot, type CreateAvailabilitySlotRequest, type CreateAvailabilitySlotResponse, type DayOfWeek, type DeleteResponse, type ListAvailabilityResponse, type LocationType, type UpdateAvailabilitySlotResponse } from '@tunion/shared';
@@ -19,7 +20,7 @@ export default function AvailabilityPage() {
   const { current } = useDemoAuth();
   return <>
     <Link to="/tutoring" className={textLink}>← Tutor directory</Link>
-    <PageHeading title="My availability" description="Manage your recurring weekly tutoring hours in Japan Standard Time (JST)." />
+    <PageHeading title="My availability" description="Manage your recurring weekly tutoring hours in Japan Standard Time (JST).">{current && <AccountBadges role={current.role} />}</PageHeading>
     {current ? <AvailabilityEditor key={current.id} /> : <Empty>Select a tutor account to manage availability.</Empty>}
   </>;
 }

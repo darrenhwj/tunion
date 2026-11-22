@@ -1,3 +1,4 @@
+import AccountBadges from '../components/AccountBadges';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { CreateDiscussionRequest, CreateDiscussionResponse, DiscussionSummary } from '@tunion/shared';
@@ -26,7 +27,7 @@ export function DiscussionList({ items }: { items: DiscussionSummary[] }) {
 }
 
 export function AuthorLink({ author }: { author: DiscussionSummary['author'] }) {
-  return <Link className="font-medium hover:text-brand-700 hover:underline" to={'/people/' + author.id}>{author.name}</Link>;
+  return <span className="inline-flex flex-wrap items-center gap-1"><Link className="font-medium hover:text-brand-700 hover:underline" to={'/people/' + author.id}>{author.name}</Link><AccountBadges role={author.role} /></span>;
 }
 
 export function DiscussionsPage() {
