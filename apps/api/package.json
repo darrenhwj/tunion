@@ -11,6 +11,7 @@
     "db:ensure": "tsx src/db/ensure.ts",
     "db:seed": "tsx src/db/seed.ts",
     "import:csv": "tsx src/import/cli.ts",
+    "fix:enrollments": "tsx src/import/swapCli.ts",
     "db:reset": "tsx src/db/seed.ts --reset",
     "test": "tsx --test \"src/**/*.test.ts\""
   },

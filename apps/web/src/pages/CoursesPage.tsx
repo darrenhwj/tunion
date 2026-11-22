@@ -8,6 +8,7 @@ import Glyph from '../components/Glyph';
 import { Empty, Field, PageHeading, Person, Tabs, field } from '../components/CommunityUI';
 import { useCommunity } from '../demo/community';
 import { api } from '../lib/api';
+import { classifyCourses } from '../lib/enrollments';
 import { useApiQuery } from '../lib/useApiQuery';
 import { useDemoAuth } from '../lib/demoAuth';
 
@@ -52,18 +53,13 @@ export function CoursesPage() {
   if (query.trim()) params.set('q', query.trim());
   const { data, loading, error } = useApiQuery(params.toString(), fetchCourses);
   const { myCourses, enrollmentsLoading, enrollmentsError } = useCommunity();
+  const visible = (data?.courses ?? []).filter((course) => !level || getCourseLevel(course.code) === Number(level));
+  const groups = classifyCourses(visible, myCourses);
   const sections = [
-    { id: 'current-courses', title: 'My Courses', empty: 'You have no current courses.', courses: [] as Course[] },
-    { id: 'previous-courses', title: 'Previous Courses', empty: 'You have no previous courses.', courses: [] as Course[] },
-    { id: 'other-courses', title: 'Other Courses', empty: 'There are no other courses.', courses: [] as Course[] },
+    { id: 'current-courses', title: 'My Courses', empty: 'You have no current courses.', courses: groups.current },
+    { id: 'previous-courses', title: 'Previous Courses', empty: 'You have no previous courses.', courses: groups.previous },
+    { id: 'other-courses', title: 'Other Courses', empty: 'There are no other courses.', courses: groups.other },
   ];
-  const [current, previous, other] = sections;
-  for (const course of data?.courses ?? []) {
-    if (level && getCourseLevel(course.code) !== Number(level)) continue;
-    if (myCourses.current.includes(course.id)) current.courses.push(course);
-    else if (myCourses.completed.includes(course.id)) previous.courses.push(course);
-    else other.courses.push(course);
-  }
   const filtering = Boolean(query.trim() || level);
 
   return <>

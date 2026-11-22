@@ -56,3 +56,15 @@ For an extra manual copy before applying: `cp apps/api/data/tunion.db ~/Document
 ## Data notes
 - Year/major are optional columns; there is no default of year 1 / Computer Science.
 - Unresolved before importing real data: the CIS 3207 description (verify the text), and each tutor's `tutoring_subjects` (the old CSV had none).
+
+## Correcting rows whose Current/Previous columns were entered backwards
+`import:csv` stores exactly what the CSV says, regardless of Tutor badge. If a row's `current_courses` and `previous_courses` were entered the wrong way round, fix the data with the narrow one-off tool (it only exchanges `enrollments.status` for the listed students):
+```bash
+C=~/Documents/TUnion-import/tunion_users.csv
+# 1. Dry run (database untouched)
+npm run fix:enrollments -w @tunion/api -- --users $C --email student1@example.edu --email student2@example.edu
+# 2. Apply (stop the app first). Backs up automatically and writes a corrected CSV copy; the original CSV is never edited.
+npm run fix:enrollments -w @tunion/api -- --users $C --email student1@example.edu --email student2@example.edu \
+  --apply --write-corrected-csv ~/Documents/TUnion-import/tunion_users.corrected.csv
+```
+Safeguards: a student is changed only if their enrollments still match the CSV exactly; a second run reports `already-corrected` instead of swapping back; any mismatch refuses the whole run. Use the corrected CSV for future `import:csv` runs, otherwise a re-import of the original CSV restores the old classification. Undo: restore the printed backup.
