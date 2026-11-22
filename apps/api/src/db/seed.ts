@@ -63,10 +63,66 @@ const discussionVotes = [[1, 2], [1, 3], [1, 5], [2, 1], [2, 3], [3, 2], [4, 2],
 // [replyId, userId]
 const replyVotes = [[1, 1], [1, 3], [3, 1], [4, 1], [5, 2], [5, 1], [7, 3], [8, 1], [8, 2], [9, 3], [10, 4]];
 
+// Dates are relative to "today" in JST so the calendar always has upcoming demo data; IDs stay fixed.
+const JST_MS = 9 * 3600_000;
+const todayJstMidnight = Math.floor((Date.now() + JST_MS) / 86_400_000) * 86_400_000 - JST_MS;
+/** UTC ISO instant for HH:MM JST, `days` from today (negative = past). */
+const jst = (days: number, hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return new Date(todayJstMidnight + days * 86_400_000 + (h * 60 + m) * 60_000).toISOString();
+};
+
+// [id, tutorId, dayOfWeek(0=Sun), start, end, locationType]
+const slots = [
+  [1, 1, 1, '16:00', '18:00', 'city_campus'],
+  [2, 1, 3, '16:00', '18:00', 'city_campus'],
+  [3, 1, 6, '10:00', '12:00', 'online'],
+  [4, 2, 2, '14:00', '16:00', 'hillside_campus'],
+  [5, 2, 4, '14:00', '16:00', 'hillside_campus'],
+  [6, 2, 5, '19:00', '21:00', 'online'],
+] as const;
+
+// [id, courseId, studentId, tutorId, topic, details, status, slotId, proposal|null, tutorNote]
+type Proposal = readonly [startsAt: string, endsAt: string, locationType: string, details: string];
+const tutoringRequests: readonly (readonly [number, number, number, number, string, string, string, number | null, Proposal | null, string])[] = [
+  [1, 1, 1, 2, 'Recursion practice', 'Stuck on tracing recursive calls for the factorial and fibonacci labs.', 'completed', 4, [jst(-5, '14:00'), jst(-5, '15:00'), 'hillside_campus', 'CS Lounge'], 'Bring your lab 4 code.'],
+  [2, 3, 2, 1, 'Heap implementation walkthrough', 'Want to understand sift-down before the midterm.', 'confirmed', 1, [jst(2, '16:00'), jst(2, '17:00'), 'city_campus', 'Library Room 2B'], 'See you there!'],
+  [3, 3, 1, 1, 'Hash table collisions', 'Chaining vs open addressing, which one should I use for the project?', 'open', 2, null, ''],
+  [4, 5, 2, 1, 'DP intuition', 'How do I identify overlapping subproblems?', 'accepted', 3, [jst(6, '10:00'), jst(6, '11:00'), 'online', 'Video link will be sent in chat'], 'Saturday morning works for me.'],
+  [5, 8, 2, 2, 'Transactions and isolation levels', 'Phantom reads confuse me.', 'rejected', null, null, 'Sorry, fully booked this month. Try the CS330 study group.'],
+  [6, 8, 1, 2, 'Indexes and query plans', 'Reading EXPLAIN output for the assignment.', 'confirmed', 6, [jst(4, '19:00'), jst(4, '20:00'), 'online', 'Video link will be sent in chat'], ''],
+];
+
+// [id, requestId|null, courseId, tutorId, studentId, startsAt, endsAt, locationType, details, status, cancelledById]
+const tutoringSessions = [
+  [1, 1, 1, 2, 1, jst(-5, '14:00'), jst(-5, '15:00'), 'hillside_campus', 'CS Lounge', 'completed', null],
+  [2, 2, 3, 1, 2, jst(2, '16:00'), jst(2, '17:00'), 'city_campus', 'Library Room 2B', 'scheduled', null],
+  [3, 6, 8, 2, 1, jst(4, '19:00'), jst(4, '20:00'), 'online', 'Video link will be sent in chat', 'scheduled', null],
+  [4, null, 3, 1, 1, jst(1, '16:00'), jst(1, '17:00'), 'city_campus', 'Library Room 2B', 'cancelled', 1],
+] as const;
+
+// [id, courseId, creatorId, name, description, meetingTime, location, maxMembers, memberIds]
+const studyGroups = [
+  [1, 3, 2, 'Data Structures Study Circle', 'Weekly problem-solving for CS201: trees, heaps and hashing.', 'Tue/Thu 18:00 JST', 'CS Lounge', 6, [2, 3]],
+  [2, 1, 5, 'Intro Programming Help Hour', 'Friendly drop-in for CS101 homework.', 'Mon 12:00 JST', 'Library Room 1A', 8, [5, 1]],
+  [3, 5, 3, 'Algorithms Problem Solving', 'Greedy, DP and graph problems from past exams.', 'Wed 19:00 JST', 'Online', 3, [3, 2, 4]],
+  [4, 2, 2, 'OOP Design Patterns', 'Working through design pattern exercises for CS102.', 'Fri 17:00 JST', 'Hillside Campus, Room 301', 4, [2]],
+] as const;
+
+// [id, groupId, title, startsAt, endsAt, location, status, createdById]
+const studyGroupSessions = [
+  [1, 1, 'Heaps and priority queues', jst(1, '18:00'), jst(1, '19:30'), 'CS Lounge', 'scheduled', 2],
+  [2, 1, 'Hash table deep dive', jst(8, '18:00'), jst(8, '19:30'), 'CS Lounge', 'scheduled', 2],
+  [3, 2, 'Loops and functions workshop', jst(3, '12:00'), jst(3, '13:00'), 'Library Room 1A', 'scheduled', 5],
+  [4, 3, 'Dynamic programming set 2', jst(2, '19:00'), jst(2, '20:30'), 'Online', 'cancelled', 3],
+  [5, 4, 'Observer and Strategy patterns', jst(5, '17:00'), jst(5, '18:30'), 'Hillside Campus, Room 301', 'scheduled', 2],
+] as const;
+
 db.exec('BEGIN');
 try {
   for (const t of [
     'reply_votes', 'discussion_votes',
+    'study_group_sessions', 'tutoring_sessions', 'tutor_availability_slots',
     'study_group_members', 'study_groups', 'tutoring_requests', 'tutor_courses', 'tutors',
     'help_requests', 'resources', 'replies', 'discussions', 'enrollments', 'courses', 'users',
   ]) db.exec(`DELETE FROM ${t}`);
@@ -91,11 +147,29 @@ try {
   discussionVotes.forEach((r) => dv.run(r[0], r[1]));
   const rv = db.prepare('INSERT INTO reply_votes (reply_id,user_id) VALUES (?,?)');
   replyVotes.forEach((r) => rv.run(r[0], r[1]));
+  const sl = db.prepare('INSERT INTO tutor_availability_slots (id,tutor_id,day_of_week,start_time,end_time,location_type) VALUES (?,?,?,?,?,?)');
+  slots.forEach((r) => sl.run(...r));
+  const tr = db.prepare(`INSERT INTO tutoring_requests
+    (id,course_id,student_id,tutor_id,topic,details,status,slot_id,proposed_starts_at,proposed_ends_at,proposed_location_type,proposed_location_details,tutor_note)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  tutoringRequests.forEach(([id, cid, sid, tid, topic, details, status, slot, p, note]) =>
+    tr.run(id, cid, sid, tid, topic, details, status, slot, p?.[0] ?? null, p?.[1] ?? null, p?.[2] ?? null, p?.[3] ?? '', note));
+  const ts = db.prepare(`INSERT INTO tutoring_sessions
+    (id,request_id,course_id,tutor_id,student_id,starts_at,ends_at,location_type,location_details,status,cancelled_by_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+  tutoringSessions.forEach((r) => ts.run(...r));
+  const sg = db.prepare('INSERT INTO study_groups (id,course_id,creator_id,name,description,meeting_time,location,max_members) VALUES (?,?,?,?,?,?,?,?)');
+  const sgm = db.prepare('INSERT INTO study_group_members (group_id,user_id) VALUES (?,?)');
+  studyGroups.forEach(([id, cid, creator, name, desc, time, loc, max, members]) => {
+    sg.run(id, cid, creator, name, desc, time, loc, max);
+    members.forEach((m) => sgm.run(id, m));
+  });
+  const sgs = db.prepare('INSERT INTO study_group_sessions (id,group_id,title,starts_at,ends_at,location,status,created_by_id) VALUES (?,?,?,?,?,?,?,?)');
+  studyGroupSessions.forEach((r) => sgs.run(...r));
   db.exec('COMMIT');
 } catch (err) {
   db.exec('ROLLBACK');
   throw err;
 }
 
-console.log(`Seeded ${users.length} users, ${courses.length} courses, ${tutors.length} tutors, ${discussions.length} discussions, ${replies.length} replies into ${DB_PATH}`);
+console.log(`Seeded ${users.length} users, ${courses.length} courses, ${tutors.length} tutors, ${discussions.length} discussions, ${replies.length} replies, ${slots.length} availability slots, ${tutoringSessions.length} tutoring sessions, ${studyGroups.length} study groups into ${DB_PATH}`);
 closeDb();

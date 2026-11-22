@@ -86,6 +86,18 @@ CREATE TABLE IF NOT EXISTS tutor_courses (
   PRIMARY KEY (tutor_id, course_id)
 );
 
+-- Weekly recurring availability. Times are JST wall-clock "HH:MM"; day_of_week 0 = Sunday .. 6 = Saturday.
+CREATE TABLE IF NOT EXISTS tutor_availability_slots (
+  id INTEGER PRIMARY KEY,
+  tutor_id INTEGER NOT NULL REFERENCES tutors(id) ON DELETE CASCADE,
+  day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL CHECK (end_time > start_time),
+  location_type TEXT NOT NULL CHECK (location_type IN ('city_campus','hillside_campus','online')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- Instants (proposed_*_at) are UTC ISO-8601 with 'Z'. See db/index.ts for the upgrade of pre-existing tables.
 CREATE TABLE IF NOT EXISTS tutoring_requests (
   id INTEGER PRIMARY KEY,
   course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -93,8 +105,31 @@ CREATE TABLE IF NOT EXISTS tutoring_requests (
   tutor_id INTEGER REFERENCES tutors(id) ON DELETE SET NULL,
   topic TEXT NOT NULL,
   details TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','accepted','completed','cancelled')),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','accepted','confirmed','rejected','completed','cancelled')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  slot_id INTEGER REFERENCES tutor_availability_slots(id) ON DELETE SET NULL,
+  proposed_starts_at TEXT,
+  proposed_ends_at TEXT,
+  proposed_location_type TEXT CHECK (proposed_location_type IN ('city_campus','hillside_campus','online')),
+  proposed_location_details TEXT NOT NULL DEFAULT '',
+  tutor_note TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS tutoring_sessions (
+  id INTEGER PRIMARY KEY,
+  request_id INTEGER UNIQUE REFERENCES tutoring_requests(id) ON DELETE SET NULL,
+  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  tutor_id INTEGER NOT NULL REFERENCES tutors(id) ON DELETE CASCADE,
+  student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  starts_at TEXT NOT NULL,
+  ends_at TEXT NOT NULL CHECK (ends_at > starts_at),
+  location_type TEXT NOT NULL CHECK (location_type IN ('city_campus','hillside_campus','online')),
+  location_details TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','completed','cancelled')),
+  cancelled_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS study_groups (
@@ -115,6 +150,18 @@ CREATE TABLE IF NOT EXISTS study_group_members (
   PRIMARY KEY (group_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS study_group_sessions (
+  id INTEGER PRIMARY KEY,
+  group_id INTEGER NOT NULL REFERENCES study_groups(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  starts_at TEXT NOT NULL,
+  ends_at TEXT NOT NULL CHECK (ends_at > starts_at),
+  location TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','cancelled')),
+  created_by_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
 CREATE TABLE IF NOT EXISTS help_requests (
   id INTEGER PRIMARY KEY,
   course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -131,3 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_resources_course ON resources(course_id);
 CREATE INDEX IF NOT EXISTS idx_help_course ON help_requests(course_id);
 -- At most one accepted (helpful) answer per discussion.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_replies_one_accepted ON replies(discussion_id) WHERE is_accepted_answer = 1;
+CREATE INDEX IF NOT EXISTS idx_slots_tutor ON tutor_availability_slots(tutor_id, day_of_week, start_time);
+CREATE INDEX IF NOT EXISTS idx_tutoring_sessions_student ON tutoring_sessions(student_id, starts_at);
+CREATE INDEX IF NOT EXISTS idx_tutoring_sessions_tutor ON tutoring_sessions(tutor_id, starts_at);
+CREATE INDEX IF NOT EXISTS idx_study_group_sessions_group ON study_group_sessions(group_id, starts_at);

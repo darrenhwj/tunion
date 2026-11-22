@@ -6,6 +6,11 @@ import { usersRouter } from './routes/users';
 import { coursesRouter } from './routes/courses';
 import { demoAuthRouter } from './routes/demoAuth';
 import { discussionsRouter, repliesRouter } from './routes/discussions';
+import { tutorsRouter } from './routes/tutors';
+import { tutoringRequestsRouter } from './routes/tutoringRequests';
+import { tutoringSessionsRouter } from './routes/tutoringSessions';
+import { studyGroupsRouter, studyGroupSessionsRouter } from './routes/studyGroups';
+import { calendarRouter } from './routes/calendar';
 import { errorHandler } from './http';
 
 export function createApp() {
@@ -35,6 +40,12 @@ export function createApp() {
   app.use('/api/courses', coursesRouter);
   app.use('/api/discussions', discussionsRouter);
   app.use('/api/replies', repliesRouter);
+  app.use('/api/tutors', tutorsRouter);
+  app.use('/api/tutoring-requests', tutoringRequestsRouter);
+  app.use('/api/tutoring-sessions', tutoringSessionsRouter);
+  app.use('/api/study-groups', studyGroupsRouter);
+  app.use('/api/study-group-sessions', studyGroupSessionsRouter);
+  app.use('/api/calendar', calendarRouter);
   app.use('/api', demoAuthRouter);
 
   app.use('/api', (_req, res) => {
