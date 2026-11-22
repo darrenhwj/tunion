@@ -17,18 +17,23 @@ const sessionsPath = '/tutoring-sessions';
 function fetchRequests(_key: string, signal: AbortSignal) {
   return api<ListTutoringRequestsResponse>(requestsPath, { signal });
 }
-function fetchIncomingRequests(_key: string, signal: AbortSignal) {
-  return api<ListTutoringRequestsResponse>(requestsPath + '?role=tutor&status=open', { signal });
-}
-
-export function IncomingTutoringRequests({ userId, onChange }: { userId: number; onChange: () => void }) {
-  const query = useApiQuery('', fetchIncomingRequests);
-  const requests = query.data?.requests.filter((request) => request.tutor?.id === userId && request.studentId !== userId && request.status === 'open') ?? [];
+export function PendingTutoringRequests({ userId, canTutor, onChange }: { userId: number; canTutor: boolean; onChange: () => void }) {
+  const query = useApiQuery('', fetchRequests);
+  const requests = query.data?.requests.filter((request) =>
+    (request.status === 'open' || request.status === 'accepted') &&
+    (request.studentId === userId || (canTutor && request.tutor?.id === userId)),
+  ) ?? [];
   if (!requests.length) return null;
-  return <section aria-labelledby="incoming-tutoring" className="space-y-3">
-    <h2 id="incoming-tutoring" className="text-xl font-bold tracking-tight">Incoming Tutoring Requests ({requests.length})</h2>
+
+  function refresh() {
+    query.refresh();
+    onChange();
+  }
+
+  return <section aria-labelledby="pending-tutoring" className="space-y-3">
+    <h3 id="pending-tutoring" className="font-semibold">Tutoring Requests ({requests.length})</h3>
     {requests.map((request) => <RequestCard key={request.id} request={request} userId={userId} refreshing={query.refreshing}
-      refresh={() => { query.refresh(); onChange(); }} />)}
+      refresh={refresh} />)}
   </section>;
 }
 
@@ -77,6 +82,11 @@ function RequestCard({ request, userId, refresh, refreshing }: { request: Tutori
   const [error, setError] = useState('');
   const pending = refreshing || saving;
   const sent = request.studentId === userId;
+  const awaitingResponse = request.status === 'open'
+    ? (sent ? 'Awaiting tutor approval' : 'Awaiting your response')
+    : request.status === 'accepted'
+      ? (sent ? 'Awaiting your confirmation' : 'Awaiting student confirmation')
+      : request.status;
   const requested = request.requestedMeeting;
   const duration = requested ? (Date.parse(requested.endsAt) - Date.parse(requested.startsAt)) / 60_000 : undefined;
   const path = requestsPath + '/' + request.id;
@@ -116,7 +126,7 @@ function RequestCard({ request, userId, refresh, refreshing }: { request: Tutori
   }
 
   return <Card className="space-y-3">
-    <div className="flex flex-wrap gap-2"><Badge tone="brand">{request.courseCode}</Badge><Badge>{request.status === 'accepted' ? 'Awaiting student confirmation' : request.status}</Badge></div>
+    <div className="flex flex-wrap gap-2"><Badge tone="brand">{request.courseCode}</Badge><Badge>{awaitingResponse}</Badge></div>
     <h3 className="break-words font-bold">{request.topic}</h3>
     <p className="text-sm text-ink-500">{sent ? 'To ' + (request.tutor?.name ?? 'peer tutor') : 'From ' + request.student.name}{request.slotId !== null && ' · Weekly slot requested'}</p>
     {request.details && <p className="whitespace-pre-wrap break-words text-sm">{request.details}</p>}
@@ -136,7 +146,7 @@ function RequestCard({ request, userId, refresh, refreshing }: { request: Tutori
       {editing === 'accept' && requested && <p className="text-sm">Confirm {timeLabel(requested)} · {locationLabel(requested)}</p>}
       {editing === 'approve' && <>
         <p className="text-sm">Choose any future time in JST. This proposal won’t change your weekly availability.</p>
-        <MeetingTimes durationMinutes={duration} /><LocationField value={requested?.locationType} />
+        <MeetingTimes requested={requested} /><LocationField value={requested?.locationType} />
         <Field label="Location details"><input name="locationDetails" defaultValue={requested?.locationDetails} maxLength={300} className={field} /></Field>
       </>}
       {editing !== 'accept' && <Field label="Note to student"><textarea name="note" maxLength={1000} className={field} rows={2} /></Field>}
