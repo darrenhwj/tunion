@@ -29,7 +29,9 @@ export function CourseCard({ course }: { course: Course }) {
       </div>
       <p className="text-xs font-bold tracking-wide text-brand-700">{course.code}</p>
       <h3 className="text-lg font-bold leading-tight">{course.title}</h3>
-      <p className="flex-1 text-sm leading-6 text-ink-500">{course.description}</p>
+      <div className="flex-1">
+        <p className="line-clamp-3 wrap-anywhere text-sm leading-6 text-ink-500">{course.description}</p>
+      </div>
       <span className="flex items-center gap-2 text-sm font-semibold text-brand-700">View course <Glyph name="arrow" className="size-4" /></span>
     </Card>
   </Link>;

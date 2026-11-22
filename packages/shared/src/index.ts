@@ -131,6 +131,9 @@ export interface HealthResponse {
 export type ListUsersResponse = { users: User[] };
 /** GET /api/users/:id */
 export type GetUserResponse = { user: User };
+export const MAX_BIO_LENGTH = 500;
+export type UpdateUserBioRequest = { bio: string };
+export type UpdateUserBioResponse = GetUserResponse;
 
 /** 'current' = taking it now, 'completed' = previously taken. Stored in the database (enrollments). */
 export type EnrollmentStatus = 'current' | 'completed';
