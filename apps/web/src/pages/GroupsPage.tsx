@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import type { StudyGroup } from '@tunion/shared';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Glyph from '../components/Glyph';
-import { CourseSelect, Empty, Field, PageHeading, RequireAccount, field } from '../components/CommunityUI';
+import { CourseSelect, Empty, Field, PageHeading, RequireAccount, field, textLink } from '../components/CommunityUI';
 import { nextId, useCommunity } from '../demo/community';
+import { useApiQuery } from '../lib/useApiQuery';
+import { fetchStudyGroups } from './StudyGroupPage';
 import { useDemoAuth } from '../lib/demoAuth';
 
 export function GroupList({ items, membership = false }: { items: StudyGroup[]; membership?: boolean }) {
@@ -40,6 +43,7 @@ export default function GroupsPage() {
   const { current } = useDemoAuth();
   const { data, update } = useCommunity();
   const [course, setCourse] = useState('');
+  const directory = useApiQuery(course, fetchStudyGroups);
   const [editing, setEditing] = useState(false);
 
   function create(event: FormEvent<HTMLFormElement>) {
@@ -70,6 +74,18 @@ export default function GroupsPage() {
       <Button type="submit">Publish group</Button>
     </form></Card></RequireAccount>}
     <div className="max-w-md"><Field label="Course"><CourseSelect all value={course} onChange={setCourse} /></Field></div>
-    <GroupList items={data.groups.filter((group) => !course || String(group.courseId) === course)} membership />
+    <section className="space-y-3">
+      <h2 className="text-xl font-bold">Groups with calendars</h2>
+      {directory.loading || directory.error ? <Empty>{directory.error ?? 'Loading study groups…'}</Empty> : directory.data?.studyGroups.length
+        ? <div className="grid gap-3 sm:grid-cols-2">{directory.data.studyGroups.map((group) => <Card key={group.id} className="space-y-2">
+          <h3 className="font-bold"><Link to={'/groups/' + group.id} className={textLink}>{group.name} →</Link></h3>
+          <p className="text-sm text-ink-700">{group.description}</p>
+          <p className="text-xs text-ink-500">{group.memberIds.length} / {group.maxMembers} members</p>
+        </Card>)}</div> : <Empty>No groups with calendars match this course.</Empty>}
+    </section>
+    <section className="space-y-3">
+      <h2 className="text-xl font-bold">Browser-local groups</h2>
+      <GroupList items={data.groups.filter((group) => !course || String(group.courseId) === course)} membership />
+    </section>
   </>;
 }
